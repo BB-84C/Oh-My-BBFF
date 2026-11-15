@@ -1,10 +1,24 @@
 {
   "name": "oh-my-bbff",
-  "version": "0.0.0",
-  "private": true,
+  "version": "1.0.0",
   "description": "Oh-My-BBFF — the plugin family for DeepSeek Harness: role-based team organization, memory that organizes itself, per-workspace tool scoping, and method skills.",
   "license": "MIT",
   "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/BB-84C/Oh-My-BBFF.git"
@@ -22,10 +36,23 @@
     "agent-team"
   ],
   "engines": {
-    "node": ">=24.9"
+    "node": ">=24.9",
+    "dsh": ">=0.2.2-rc.2"
   },
   "packageManager": "pnpm@10.12.4",
   "scripts": {
-    "check": "node packages/oh-my-bbff-widgets/scripts/check-package.mjs && node packages/oh-my-bbff-team/scripts/check-package.mjs && node packages/oh-my-bbff-team/scripts/check-prompt-stability.mjs && node packages/oh-my-bbff-memory/scripts/check-package.mjs && node packages/oh-my-bbff-scope/scripts/check-package.mjs && node packages/oh-my-bbff-superpowers/scripts/dsh-runtime.mjs && node packages/oh-my-bbff/scripts/check-package.mjs"
+    "check": "node packages/oh-my-bbff-widgets/scripts/check-package.mjs && node packages/oh-my-bbff-team/scripts/check-package.mjs && node packages/oh-my-bbff-team/scripts/check-prompt-stability.mjs && node packages/oh-my-bbff-memory/scripts/check-package.mjs && node packages/oh-my-bbff-scope/scripts/check-package.mjs && node packages/oh-my-bbff-superpowers/scripts/dsh-runtime.mjs && node packages/oh-my-bbff/scripts/check-package.mjs && node scripts/check-root-bundle.mjs"
+  },
+  "dependencies": {
+    "oh-my-bbff-widgets": "1.0.0",
+    "oh-my-bbff-team": "1.0.0",
+    "oh-my-bbff-memory": "1.0.0",
+    "oh-my-bbff-scope": "1.0.0",
+    "oh-my-bbff-superpowers": "1.0.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
   }
 }

@@ -1,0 +1,276 @@
+{
+  "format": 1,
+  "title": {
+    "en": "Oh-My-BBFF",
+    "zh": "Oh-My-BBFF"
+  },
+  "description": {
+    "en": "The Oh-My-BBFF plugin family for DeepSeek Harness: one bundle or five individual plugins.",
+    "zh": "Oh-My-BBFF 的 DeepSeek Harness 插件家族：一个总包或五个独立插件。"
+  },
+  "metadata": {
+    "categories": {
+      "family": {
+        "title": {
+          "en": "Oh-My-BBFF family",
+          "zh": "Oh-My-BBFF 家族"
+        }
+      }
+    },
+    "labels": {
+      "official": {
+        "title": {
+          "en": "Official",
+          "zh": "官方"
+        }
+      }
+    }
+  },
+  "plugins": [
+    {
+      "name": "oh-my-bbff",
+      "title": {
+        "en": "Oh-My-BBFF"
+      },
+      "description": {
+        "en": "The whole family in one install: Widgets, Team, Memory, Scope and Superpowers, with the SDK contract that connects them."
+      },
+      "author": "Siyu Cheng (BB-84C)",
+      "homepage": "https://github.com/BB-84C/Oh-My-BBFF#readme",
+      "repository": {
+        "url": "https://github.com/BB-84C/Oh-My-BBFF"
+      },
+      "metadata": {
+        "keywords": [
+          "oh-my-bbff",
+          "dsh",
+          "deepseek-harness",
+          "plugin"
+        ],
+        "category": "family",
+        "labels": [
+          "official"
+        ]
+      },
+      "versions": [
+        {
+          "version": "1.0.0",
+          "publishTimestamp": 1794705035,
+          "source": {
+            "type": "npm",
+            "registry": "https://registry.npmjs.org/"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.2"
+          }
+        }
+      ],
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJvaC1teS1CQkZGLXdpZGdldHMiPgogIDxyZWN0IHg9IjIiIHk9IjIiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcng9IjE0IiBmaWxsPSIjMmEyMzQwIi8+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMTUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2M4YTZmZiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYzhhNmZmIiBzdHJva2Utd2lkdGg9IjQiLz4KICA8ZyBzdHJva2U9IiNjOGE2ZmYiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgIDxwYXRoIGQ9Ik0zMiA5djQiLz4KICAgIDxwYXRoIGQ9Ik0zMiA1MXY0Ii8+CiAgICA8cGF0aCBkPSJNOSAzMmg0Ii8+CiAgICA8cGF0aCBkPSJNNTEgMzJoNCIvPgogIDwvZz4KPC9zdmc+Cg=="
+    },
+    {
+      "name": "oh-my-bbff-widgets",
+      "title": {
+        "en": "Oh-My-BBFF Widgets"
+      },
+      "description": {
+        "en": "Family root for the DSH Web UI: the BBFF panel, status cards, notes and the settings surface for every Oh-My-BBFF module."
+      },
+      "author": "Siyu Cheng (BB-84C)",
+      "homepage": "https://github.com/BB-84C/Oh-My-BBFF#readme",
+      "repository": {
+        "url": "https://github.com/BB-84C/Oh-My-BBFF",
+        "directory": "packages/oh-my-bbff-widgets"
+      },
+      "metadata": {
+        "keywords": [
+          "oh-my-bbff",
+          "dsh",
+          "deepseek-harness",
+          "plugin"
+        ],
+        "category": "family",
+        "labels": [
+          "official"
+        ]
+      },
+      "versions": [
+        {
+          "version": "1.0.0",
+          "publishTimestamp": 1794705069,
+          "source": {
+            "type": "npm",
+            "registry": "https://registry.npmjs.org/"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.2"
+          }
+        }
+      ],
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJvaC1teS1CQkZGLXdpZGdldHMiPgogIDxyZWN0IHg9IjIiIHk9IjIiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcng9IjE0IiBmaWxsPSIjMmEyMzQwIi8+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMTUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2M4YTZmZiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYzhhNmZmIiBzdHJva2Utd2lkdGg9IjQiLz4KICA8ZyBzdHJva2U9IiNjOGE2ZmYiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgIDxwYXRoIGQ9Ik0zMiA5djQiLz4KICAgIDxwYXRoIGQ9Ik0zMiA1MXY0Ii8+CiAgICA8cGF0aCBkPSJNOSAzMmg0Ii8+CiAgICA8cGF0aCBkPSJNNTEgMzJoNCIvPgogIDwvZz4KPC9zdmc+Cg=="
+    },
+    {
+      "name": "oh-my-bbff-team",
+      "title": {
+        "en": "Oh-My-BBFF Team"
+      },
+      "description": {
+        "en": "Role-based organization of subagents and Team members: role catalog, orchestrator doctrine, per-role tool and model scope."
+      },
+      "author": "Siyu Cheng (BB-84C)",
+      "homepage": "https://github.com/BB-84C/Oh-My-BBFF#readme",
+      "repository": {
+        "url": "https://github.com/BB-84C/Oh-My-BBFF",
+        "directory": "packages/oh-my-bbff-team"
+      },
+      "metadata": {
+        "keywords": [
+          "oh-my-bbff",
+          "dsh",
+          "deepseek-harness",
+          "plugin"
+        ],
+        "category": "family",
+        "labels": [
+          "official"
+        ]
+      },
+      "versions": [
+        {
+          "version": "1.0.0",
+          "publishTimestamp": 1794705103,
+          "source": {
+            "type": "npm",
+            "registry": "https://registry.npmjs.org/"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.2"
+          }
+        }
+      ],
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJvaC1teS1CQkZGLXdpZGdldHMiPgogIDxyZWN0IHg9IjIiIHk9IjIiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcng9IjE0IiBmaWxsPSIjMmEyMzQwIi8+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMTUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2M4YTZmZiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYzhhNmZmIiBzdHJva2Utd2lkdGg9IjQiLz4KICA8ZyBzdHJva2U9IiNjOGE2ZmYiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgIDxwYXRoIGQ9Ik0zMiA5djQiLz4KICAgIDxwYXRoIGQ9Ik0zMiA1MXY0Ii8+CiAgICA8cGF0aCBkPSJNOSAzMmg0Ii8+CiAgICA8cGF0aCBkPSJNNTEgMzJoNCIvPgogIDwvZz4KPC9zdmc+Cg=="
+    },
+    {
+      "name": "oh-my-bbff-memory",
+      "title": {
+        "en": "Oh-My-BBFF Memory"
+      },
+      "description": {
+        "en": "Memory that organizes itself: routed or full-resident injection, memory tools, and the in-process Dreaming Resident."
+      },
+      "author": "Siyu Cheng (BB-84C)",
+      "homepage": "https://github.com/BB-84C/Oh-My-BBFF#readme",
+      "repository": {
+        "url": "https://github.com/BB-84C/Oh-My-BBFF",
+        "directory": "packages/oh-my-bbff-memory"
+      },
+      "metadata": {
+        "keywords": [
+          "oh-my-bbff",
+          "dsh",
+          "deepseek-harness",
+          "plugin"
+        ],
+        "category": "family",
+        "labels": [
+          "official"
+        ]
+      },
+      "versions": [
+        {
+          "version": "1.0.0",
+          "publishTimestamp": 1794705047,
+          "source": {
+            "type": "npm",
+            "registry": "https://registry.npmjs.org/"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.2"
+          }
+        }
+      ],
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJvaC1teS1CQkZGLXdpZGdldHMiPgogIDxyZWN0IHg9IjIiIHk9IjIiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcng9IjE0IiBmaWxsPSIjMmEyMzQwIi8+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMTUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2M4YTZmZiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYzhhNmZmIiBzdHJva2Utd2lkdGg9IjQiLz4KICA8ZyBzdHJva2U9IiNjOGE2ZmYiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgIDxwYXRoIGQ9Ik0zMiA5djQiLz4KICAgIDxwYXRoIGQ9Ik0zMiA1MXY0Ii8+CiAgICA8cGF0aCBkPSJNOSAzMmg0Ii8+CiAgICA8cGF0aCBkPSJNNTEgMzJoNCIvPgogIDwvZz4KPC9zdmc+Cg=="
+    },
+    {
+      "name": "oh-my-bbff-scope",
+      "title": {
+        "en": "Oh-My-BBFF Scope"
+      },
+      "description": {
+        "en": "Workspace availability rules for tools, MCP servers and skills."
+      },
+      "author": "Siyu Cheng (BB-84C)",
+      "homepage": "https://github.com/BB-84C/Oh-My-BBFF#readme",
+      "repository": {
+        "url": "https://github.com/BB-84C/Oh-My-BBFF",
+        "directory": "packages/oh-my-bbff-scope"
+      },
+      "metadata": {
+        "keywords": [
+          "oh-my-bbff",
+          "dsh",
+          "deepseek-harness",
+          "plugin"
+        ],
+        "category": "family",
+        "labels": [
+          "official"
+        ]
+      },
+      "versions": [
+        {
+          "version": "1.0.0",
+          "publishTimestamp": 1794705027,
+          "source": {
+            "type": "npm",
+            "registry": "https://registry.npmjs.org/"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.2"
+          }
+        }
+      ],
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJvaC1teS1CQkZGLXdpZGdldHMiPgogIDxyZWN0IHg9IjIiIHk9IjIiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcng9IjE0IiBmaWxsPSIjMmEyMzQwIi8+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMTUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2M4YTZmZiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYzhhNmZmIiBzdHJva2Utd2lkdGg9IjQiLz4KICA8ZyBzdHJva2U9IiNjOGE2ZmYiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgIDxwYXRoIGQ9Ik0zMiA5djQiLz4KICAgIDxwYXRoIGQ9Ik0zMiA1MXY0Ii8+CiAgICA8cGF0aCBkPSJNOSAzMmg0Ii8+CiAgICA8cGF0aCBkPSJNNTEgMzJoNCIvPgogIDwvZz4KPC9zdmc+Cg=="
+    },
+    {
+      "name": "oh-my-bbff-superpowers",
+      "title": {
+        "en": "Oh-My-BBFF Superpowers"
+      },
+      "description": {
+        "en": "Method skills for planning, review, debugging and verification, including the Team leading and member skills."
+      },
+      "author": "Siyu Cheng (BB-84C)",
+      "homepage": "https://github.com/BB-84C/Oh-My-BBFF#readme",
+      "repository": {
+        "url": "https://github.com/BB-84C/Oh-My-BBFF",
+        "directory": "packages/oh-my-bbff-superpowers"
+      },
+      "metadata": {
+        "keywords": [
+          "oh-my-bbff",
+          "dsh",
+          "deepseek-harness",
+          "plugin"
+        ],
+        "category": "family",
+        "labels": [
+          "official"
+        ]
+      },
+      "versions": [
+        {
+          "version": "1.0.0",
+          "publishTimestamp": 1794705030,
+          "source": {
+            "type": "npm",
+            "registry": "https://registry.npmjs.org/"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.2"
+          }
+        }
+      ],
+      "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJvaC1teS1CQkZGLXdpZGdldHMiPgogIDxyZWN0IHg9IjIiIHk9IjIiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcng9IjE0IiBmaWxsPSIjMmEyMzQwIi8+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMTUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2M4YTZmZiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYzhhNmZmIiBzdHJva2Utd2lkdGg9IjQiLz4KICA8ZyBzdHJva2U9IiNjOGE2ZmYiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj4KICAgIDxwYXRoIGQ9Ik0zMiA5djQiLz4KICAgIDxwYXRoIGQ9Ik0zMiA1MXY0Ii8+CiAgICA8cGF0aCBkPSJNOSAzMmg0Ii8+CiAgICA8cGF0aCBkPSJNNTEgMzJoNCIvPgogIDwvZz4KPC9zdmc+Cg=="
+    }
+  ]
+}

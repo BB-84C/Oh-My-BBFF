@@ -21,6 +21,14 @@ release.
    profile patch, and DSH reads that patch at boot. If another plugin install later re-serializes
    the patch, the settings page reports drift and offers a regenerate preview. The cap already in
    effect is shown next to it.
+6. **DeepSeek Harness needs pnpm to install plugins.** On a machine without pnpm, Add plugin fails
+   with `spawn pnpm ENOENT`. Install pnpm (`npm install -g pnpm`) so that it is on the PATH DSH runs
+   with, then restart DSH.
+7. **Use the `file:` prefix for a local clone.** A plain directory path installs in DSH's
+   development link mode, which needs `pnpm install` inside the clone first.
+8. **Discover needs an experimental DSH plugin.** Turn on **Custom plugin indexes** in
+   **Plugins → Experimental plugins**. The index source must be the raw file URL
+   `https://raw.githubusercontent.com/BB-84C/Oh-My-BBFF/main/plugin-index.json`, not a GitHub page.
 
 ## Installing the family bundle
 

@@ -76,27 +76,36 @@ Everything comes back to the human. The BBFF panel gives you a clear view of the
 ![Oh-My-BBFF family: Widgets as the family root, Team, Memory, Scope and Superpowers, with the SDK contract used by the modules](docs/media/family-diagram.svg)
 
 ## Install
-Requires DeepSeek Harness >= 0.2.2.
+Requires DeepSeek Harness >= 0.2.2 and pnpm. DSH installs plugins with pnpm, so pnpm must be on the PATH that DSH runs with. If `pnpm -v` fails in your terminal, run `npm install -g pnpm`, then restart DSH.
 
-Install the whole family with the bundle:
+Each of the four ways below installs the whole family (`oh-my-bbff`). No restart is needed.
 
-- **In the DSH Web UI**: go to **Plugins → Add plugin**, enter `oh-my-bbff`, then click **Install** and **Enable now**.
-- **From a terminal**:
+**1. Package name (recommended)**
+- In the DSH Web UI, go to **Plugins → Add plugin**, enter `oh-my-bbff`, then click **Install** and **Enable now**.
+- From a terminal:
   ```bash
   dsh plugin --profile web add oh-my-bbff
   ```
 
-You can also install the plugins one by one, in this order (`oh-my-bbff-widgets` first, then `oh-my-bbff-team`, `oh-my-bbff-memory`, `oh-my-bbff-scope`, and `oh-my-bbff-superpowers`):
-
+**2. GitHub repository**
+- In **Plugins → Add plugin**, enter `https://github.com/BB-84C/Oh-My-BBFF`. From a terminal:
   ```bash
-  dsh plugin --profile web add oh-my-bbff-widgets
-  dsh plugin --profile web add oh-my-bbff-team
-  dsh plugin --profile web add oh-my-bbff-memory
-  dsh plugin --profile web add oh-my-bbff-scope
-  dsh plugin --profile web add oh-my-bbff-superpowers
+  dsh plugin --profile web add https://github.com/BB-84C/Oh-My-BBFF
   ```
 
-No restart is needed when installing or updating the plugins.
+**3. Discover (plugin index)**
+1. In **Plugins → Experimental plugins**, turn on **Custom plugin indexes**. A **Discover** tab appears.
+2. In **Discover → Add index source**, paste `https://raw.githubusercontent.com/BB-84C/Oh-My-BBFF/main/plugin-index.json`.
+3. Install **oh-my-bbff**, then turn it on in **Installed → Installed plugins**.
+
+**4. Local clone**
+```bash
+git clone https://github.com/BB-84C/Oh-My-BBFF.git
+dsh plugin --profile web add "file:/absolute/path/to/Oh-My-BBFF"
+```
+Keep the `file:` prefix. A plain directory path installs in development link mode, which needs `pnpm install` inside the clone first.
+
+**Single plugins.** Every plugin can also be installed on its own: by package name (`oh-my-bbff-widgets`, `oh-my-bbff-team`, `oh-my-bbff-memory`, `oh-my-bbff-scope`, `oh-my-bbff-superpowers`), from GitHub with a path (`https://github.com/BB-84C/Oh-My-BBFF#path:packages/oh-my-bbff-widgets`), or from a local clone (`file:<clone>/packages/oh-my-bbff-widgets`). Install `oh-my-bbff-widgets` first, since it is the family root. Use either the bundle or single plugins, not both.
 
 **First run:**
 1. Choose a workspace folder (a fresh DSH install has none selected).

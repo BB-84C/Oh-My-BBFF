@@ -76,27 +76,36 @@ BBFF 面板提供了一个清晰的团队状态与进度视图。卡片包括已
 ![Oh-My-BBFF 家族：Widgets 是家族根插件，Team、Memory、Scope 与 Superpowers 通过 SDK 契约接入](docs/media/family-diagram.svg)
 
 ## 安装
-需要 DeepSeek Harness >= 0.2.2。
+需要 DeepSeek Harness >= 0.2.2 和 pnpm。DSH 用 pnpm 安装插件，所以 DSH 运行时必须能在 PATH 中找到 pnpm。如果终端里 `pnpm -v` 报错，先运行 `npm install -g pnpm`，再重启 DSH。
 
-安装总包即可一次装好全部插件：
+下面四种方式任选其一，都会装好整套插件（`oh-my-bbff`）。安装后无需重启 DSH。
 
-- **在 DSH Web 界面中**：进入 **插件（Plugins） → 添加插件（Add plugin）**，输入 `oh-my-bbff`，点击安装（Install）后再点击立即启用（Enable now）。
-- **在终端中**：
+**1. 包名（推荐）**
+- 在 DSH Web 界面中，进入 **插件（Plugins） → 添加插件（Add plugin）**，输入 `oh-my-bbff`，点击安装（Install）后再点击立即启用（Enable now）。
+- 在终端中：
   ```bash
   dsh plugin --profile web add oh-my-bbff
   ```
 
-也可以按顺序逐个安装（先装 `oh-my-bbff-widgets`，再依次安装 `oh-my-bbff-team`、`oh-my-bbff-memory`、`oh-my-bbff-scope`、`oh-my-bbff-superpowers`）：
-
+**2. GitHub 仓库**
+- 在 **添加插件（Add plugin）** 中输入 `https://github.com/BB-84C/Oh-My-BBFF`。在终端中：
   ```bash
-  dsh plugin --profile web add oh-my-bbff-widgets
-  dsh plugin --profile web add oh-my-bbff-team
-  dsh plugin --profile web add oh-my-bbff-memory
-  dsh plugin --profile web add oh-my-bbff-scope
-  dsh plugin --profile web add oh-my-bbff-superpowers
+  dsh plugin --profile web add https://github.com/BB-84C/Oh-My-BBFF
   ```
 
-安装或更新插件无需重启 DSH。
+**3. 发现（Discover，插件索引）**
+1. 在 **插件（Plugins） → 实验性插件（Experimental plugins）** 中开启 **自定义插件索引（Custom plugin indexes）**，插件页会出现 **发现（Discover）** 标签页。
+2. 在 **发现 → 添加索引源（Add index source）** 中粘贴 `https://raw.githubusercontent.com/BB-84C/Oh-My-BBFF/main/plugin-index.json`。
+3. 安装 **oh-my-bbff**，再到 **已安装（Installed） → 已安装插件（Installed plugins）** 中开启它。
+
+**4. 本地克隆**
+```bash
+git clone https://github.com/BB-84C/Oh-My-BBFF.git
+dsh plugin --profile web add "file:/克隆目录的绝对路径/Oh-My-BBFF"
+```
+请保留 `file:` 前缀。直接填写目录路径会以开发链接模式安装，需要先在克隆目录里运行 `pnpm install`。
+
+**单独安装某个插件。** 每个插件也可以单独安装：用包名（`oh-my-bbff-widgets`、`oh-my-bbff-team`、`oh-my-bbff-memory`、`oh-my-bbff-scope`、`oh-my-bbff-superpowers`），用带路径的 GitHub 地址（`https://github.com/BB-84C/Oh-My-BBFF#path:packages/oh-my-bbff-widgets`），或用本地克隆（`file:<克隆目录>/packages/oh-my-bbff-widgets`）。请先装 `oh-my-bbff-widgets`，它是家族根插件。总包和单独安装二选一，不要混用。
 
 **首次使用：**
 1. 选择一个工作区目录（全新安装的 DSH 默认未选择工作区）。

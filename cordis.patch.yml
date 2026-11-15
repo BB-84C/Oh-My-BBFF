@@ -1,0 +1,37 @@
+# oh-my-bbff — the family meta bundle patch.
+#
+# One insert block, one row per family package, in install order: Widgets first (the family root),
+# then Team, Memory, Scope and Superpowers. Each row copies the `id` and `inject` list of that
+# package's own cordis.patch.yml, so installing the meta bundle and installing a package directly
+# address the same loader row instead of creating a second one. Patch composition is id-keyed and
+# the later layer wins per row, which is what makes a mixed install converge.
+#
+# Keep this list in sync with packages/*/cordis.patch.yml. scripts/check-package.mjs fails when a
+# row here and the package's own row disagree.
+- insert:
+    - id: oh-my-bbff-widgets
+      name: 'oh-my-bbff-widgets'
+      inject:
+        - webServer
+        - agents
+        - goals
+        - sessionQuery
+        - tools
+    - id: oh-my-bbff-team
+      name: 'oh-my-bbff-team'
+      inject:
+        - tools
+    - id: oh-my-bbff-memory
+      name: 'oh-my-bbff-memory'
+      inject:
+        - workingDirectory
+        - webServer
+        - tools
+    - id: oh-my-bbff-scope
+      name: 'oh-my-bbff-scope'
+      inject:
+        - tools
+    - id: oh-my-bbff-superpowers
+      name: 'oh-my-bbff-superpowers'
+      inject:
+        - skills
