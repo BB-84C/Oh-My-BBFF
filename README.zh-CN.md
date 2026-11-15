@@ -88,7 +88,7 @@ BBFF 面板提供了一个清晰的团队状态与进度视图。卡片包括已
   ```
 
 **2. GitHub 仓库**
-- 在 **添加插件（Add plugin）** 中输入 `https://github.com/BB-84C/Oh-My-BBFF`。在终端中：
+- 在 **添加插件（Add plugin）** 中输入 `https://github.com/BB-84C/Oh-My-BBFF`，点击安装（Install）后再点击立即启用（Enable now）。在终端中：
   ```bash
   dsh plugin --profile web add https://github.com/BB-84C/Oh-My-BBFF
   ```
@@ -103,7 +103,7 @@ BBFF 面板提供了一个清晰的团队状态与进度视图。卡片包括已
 git clone https://github.com/BB-84C/Oh-My-BBFF.git
 dsh plugin --profile web add "file:/克隆目录的绝对路径/Oh-My-BBFF"
 ```
-请保留 `file:` 前缀。直接填写目录路径会以开发链接模式安装，需要先在克隆目录里运行 `pnpm install`。
+请保留 `file:` 前缀。Windows 上写成 `file:D:\path\to\Oh-My-BBFF` 这样的形式。直接填写目录路径会以开发链接模式安装，需要先在克隆目录里运行 `pnpm install`。
 
 **单独安装某个插件。** 每个插件也可以单独安装：用包名（`oh-my-bbff-widgets`、`oh-my-bbff-team`、`oh-my-bbff-memory`、`oh-my-bbff-scope`、`oh-my-bbff-superpowers`），用带路径的 GitHub 地址（`https://github.com/BB-84C/Oh-My-BBFF#path:packages/oh-my-bbff-widgets`），或用本地克隆（`file:<克隆目录>/packages/oh-my-bbff-widgets`）。请先装 `oh-my-bbff-widgets`，它是家族根插件。总包和单独安装二选一，不要混用。
 

@@ -88,7 +88,7 @@ Each of the four ways below installs the whole family (`oh-my-bbff`). No restart
   ```
 
 **2. GitHub repository**
-- In **Plugins → Add plugin**, enter `https://github.com/BB-84C/Oh-My-BBFF`. From a terminal:
+- In **Plugins → Add plugin**, enter `https://github.com/BB-84C/Oh-My-BBFF`, then click **Install** and **Enable now**. From a terminal:
   ```bash
   dsh plugin --profile web add https://github.com/BB-84C/Oh-My-BBFF
   ```
@@ -103,7 +103,7 @@ Each of the four ways below installs the whole family (`oh-my-bbff`). No restart
 git clone https://github.com/BB-84C/Oh-My-BBFF.git
 dsh plugin --profile web add "file:/absolute/path/to/Oh-My-BBFF"
 ```
-Keep the `file:` prefix. A plain directory path installs in development link mode, which needs `pnpm install` inside the clone first.
+Keep the `file:` prefix. On Windows, write the path as `file:D:\path\to\Oh-My-BBFF`. A plain directory path installs in development link mode, which needs `pnpm install` inside the clone first.
 
 **Single plugins.** Every plugin can also be installed on its own: by package name (`oh-my-bbff-widgets`, `oh-my-bbff-team`, `oh-my-bbff-memory`, `oh-my-bbff-scope`, `oh-my-bbff-superpowers`), from GitHub with a path (`https://github.com/BB-84C/Oh-My-BBFF#path:packages/oh-my-bbff-widgets`), or from a local clone (`file:<clone>/packages/oh-my-bbff-widgets`). Install `oh-my-bbff-widgets` first, since it is the family root. Use either the bundle or single plugins, not both.
 
