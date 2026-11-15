@@ -1,0 +1,6 @@
+/** Display ordering over normalized DTOs only. Native identities/timestamps are never inferred here. */
+const time=value=>Number.isSafeInteger(value)&&value>=0?value:null
+const basis=(row,orderBasis)=>({...row,orderBasis})
+export function latestTasks(rows){return rows.slice().reverse().map(row=>basis(row,'creation-order'))}
+export function recentChildren(rows){return rows.map((row,index)=>({row,index,time:time(row.createdAt)})).sort((a,b)=>{if(a.time===null&&b.time!==null)return 1;if(a.time!==null&&b.time===null)return -1;if(a.time!==null&&b.time!==null&&a.time!==b.time)return b.time-a.time;return a.index-b.index}).map(item=>basis(item.row,item.time===null?'unknown-time':'createdAt'))}
+export function recentGoals(rows){return rows.map((row,index)=>{const completed=row.phase==='complete'?time(row.completedAt):null,updated=time(row.updatedAt),created=time(row.createdAt);return {row,index,time:completed??updated??created,orderBasis:completed!==null?'completedAt':updated!==null?'updated-fallback':created!==null?'created-fallback':'unknown-time'}}).sort((a,b)=>{if(a.time===null&&b.time!==null)return 1;if(a.time!==null&&b.time===null)return -1;if(a.time!==null&&b.time!==null&&a.time!==b.time)return b.time-a.time;return a.index-b.index}).map(item=>basis(item.row,item.orderBasis))}

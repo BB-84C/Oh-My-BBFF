@@ -1,0 +1,12 @@
+{
+  "name": "js-yaml",
+  "version": "4.3.2",
+  "license": "MIT",
+  "upstream": "js-yaml/dist/js-yaml.mjs",
+  "vendoredAs": "lib/vendor/js-yaml/js-yaml.mjs",
+  "files": [
+    { "path": "js-yaml.mjs", "upstreamPath": "dist/js-yaml.mjs", "bytes": 104118, "sha256": "cea276c7e15f409a1adbe5d177aba7824398a474f7cf702bd57962c7d570636f" },
+    { "path": "LICENSE", "upstreamPath": "LICENSE", "bytes": 1084, "sha256": "a07bc24468b9654ce76a547d47a2db282d07733b715db4c73a98bd63961f9550" }
+  ],
+  "why": "The profile patch is parsed and re-serialized by DSH with js-yaml (JSON_SCHEMA plus the !!js scalar type). Comparing the managed preset-budget block semantically needs that exact dialect, and a profile install cannot resolve host packages from a plugin, so a bare `js-yaml` import would fail on a user machine."
+}

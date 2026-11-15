@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "defaultImportance": "advanced",
+  "basicGroups": [
+    {
+      "id": "session-mode"
+    },
+    {
+      "id": "memory-injection"
+    },
+    {
+      "id": "dreaming"
+    }
+  ],
+  "fields": {
+    "defaultMode": {
+      "importance": "basic",
+      "basicGroup": "session-mode",
+      "basicOrder": 1
+    },
+    "injectEnabled": {
+      "importance": "basic",
+      "basicGroup": "memory-injection",
+      "basicOrder": 2
+    },
+    "dreamEnabled": {
+      "importance": "basic",
+      "basicGroup": "dreaming",
+      "basicOrder": 3
+    }
+  }
+}

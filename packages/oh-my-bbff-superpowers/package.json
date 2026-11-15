@@ -1,0 +1,36 @@
+{
+  "name": "oh-my-bbff-superpowers",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Oh-My-BBFF Superpowers - practical team leadership, planning, review, debugging, testing, and verification skills for DeepSeek Harness.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BB-84C/Oh-My-BBFF.git",
+    "directory": "packages/oh-my-bbff-superpowers"
+  },
+  "homepage": "https://github.com/BB-84C/Oh-My-BBFF#readme",
+  "bugs": {
+    "url": "https://github.com/BB-84C/Oh-My-BBFF/issues"
+  },
+  "keywords": [
+    "oh-my-bbff",
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "plugin",
+    "skills",
+    "workflow",
+    "team-leadership"
+  ],
+  "main": "./index.js",
+  "exports": { ".": "./index.js", "./locale/*.json": "./locale/*.json", "./icon": "./icon.svg", "./package.json": "./package.json" },
+  "files": ["index.js", "lib/", "skills/", "scripts/check-package.mjs", "scripts/package-gate.js", "scripts/dsh-runtime.mjs", "cordis.patch.yml", "locale/", "icon.svg", "README.md", "CHANGELOG.md", "THIRD_PARTY_NOTICES.md", "payload-manifest.json"],
+  "scripts": {
+    "test": "node --import ./scripts/dsh-runtime.mjs --test test/*.test.js",
+    "check-package": "node scripts/dsh-runtime.mjs",
+    "prepack": "node scripts/dsh-runtime.mjs --release --write-manifest"
+  },
+  "engines": { "node": ">=24.9", "dsh": ">=0.2.2-rc.2" },
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+}

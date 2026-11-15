@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "defaultTokenizer": "deepseek-v4.1-flash",
+  "cacheEntries": 512,
+  "workerMemoryMb": 256,
+  "requestTimeoutMs": 20000,
+  "failureEstimator": { "name": "UTF-8/3 heuristic", "version": "1", "bytesPerToken": 3 },
+  "tokenizers": [
+    {
+      "key": "deepseek-v4.1-flash",
+      "name": "DeepSeek-V4.1-Flash tokenizer",
+      "id": "deepseek-ai/DeepSeek-V4.1-Flash",
+      "revision": "dba1be0a40aa45a94ad051997016db3960a90277",
+      "directory": "deepseek-v4.1-flash",
+      "modelIds": ["deepseek-flash", "deepseek-v4.1-flash", "DeepSeek-V4.1-Flash"],
+      "modelNames": ["DeepSeek-V4.1-Flash", "DeepSeek V4.1 Flash"],
+      "runtime": { "name": "@huggingface/tokenizers", "version": "0.2.0", "directory": "vendor/huggingface-tokenizers" }
+    }
+  ]
+}

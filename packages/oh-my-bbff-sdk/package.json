@@ -1,0 +1,64 @@
+{
+  "name": "oh-my-bbff-sdk",
+  "version": "1.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "description": "Open contract SDK for Oh-My-BBFF modules: family registry (host), UI card/settings registration and locale dictionaries (client) for the Oh-My-BBFF Widgets root.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BB-84C/Oh-My-BBFF.git",
+    "directory": "packages/oh-my-bbff-sdk"
+  },
+  "homepage": "https://github.com/BB-84C/Oh-My-BBFF#readme",
+  "bugs": {
+    "url": "https://github.com/BB-84C/Oh-My-BBFF/issues"
+  },
+  "engines": {
+    "dsh": ">=0.2.2-rc.2"
+  },
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./contract": {
+      "types": "./index.d.ts",
+      "default": "./contract.js"
+    },
+    "./dsh-adapter": {
+      "types": "./dsh-adapter.d.ts",
+      "default": "./dsh-adapter.js"
+    },
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "contract.js",
+    "dsh-adapter.js",
+    "dsh-adapter.d.ts",
+    "DSH_ADAPTER.md",
+    "NATIVE_TOOL_EFFECTS.md",
+    "NATIVE_TOOL_SOURCE_BASELINE.json",
+    "scripts/",
+    "locale/",
+    "CONTRACT.md",
+    "README.md",
+    "CHANGELOG.md",
+    "examples/"
+  ],
+  "scripts": {
+    "sync": "node scripts/sync-into.mjs"
+  },
+  "keywords": [
+    "oh-my-bbff",
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "plugin"
+  ],
+  "license": "MIT"
+}

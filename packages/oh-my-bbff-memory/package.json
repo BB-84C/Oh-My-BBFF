@@ -1,0 +1,67 @@
+{
+  "name": "oh-my-bbff-memory",
+  "version": "1.0.0",
+  "engines": { "dsh": ">=0.2.2-rc.2" },
+  "type": "module",
+  "description": "Oh-My-BBFF Memory — Markdown memory for DeepSeek Harness: full-resident or routed injection, memory tools, session toggles, and an in-process Dreaming Resident.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BB-84C/Oh-My-BBFF.git",
+    "directory": "packages/oh-my-bbff-memory"
+  },
+  "homepage": "https://github.com/BB-84C/Oh-My-BBFF#readme",
+  "bugs": {
+    "url": "https://github.com/BB-84C/Oh-My-BBFF/issues"
+  },
+  "keywords": [
+    "oh-my-bbff",
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "plugin",
+    "memory",
+    "agent-memory",
+    "markdown"
+  ],
+  "main": "./index.js",
+  "scripts": { "check-package": "node scripts/check-package.mjs", "prepack": "node scripts/generate-skill.mjs && node scripts/check-package.mjs" },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./resident-boundary": "./lib/dreaming/preset.js",
+    "./store": "./lib/store.js",
+    "./icon": "./icon.svg",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib/",
+    "locale/*.json",
+    "scripts/patch-profile-budget.mjs",
+    "scripts/check-package.mjs",
+    "scripts/generate-skill.mjs",
+    "skills/update-memory/SKILL.md",
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md",
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "bbff": {
+    "contract": 1,
+    "id": "memory",
+    "title": "Oh-My-BBFF Memory"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}

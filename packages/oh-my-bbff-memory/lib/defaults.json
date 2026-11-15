@@ -1,0 +1,474 @@
+{
+  "settingsVersion": 4,
+  "source": "Oh-My-BBFF Memory shipped defaults",
+  "contract": {
+    "sourceKind": "plugin:bbff-memory"
+  },
+  "policies": {
+    "reviewInventoryFactor": 1.3,
+    "budgetFallbackWindowTokens": 128000,
+    "budgetWindowCacheMs": 300000,
+    "reviewInventoryScope": "global plus distinct resolved root workspaces in the bound delta; unknown roots are explicitly diagnosed",
+    "budgetScope": "one framed Memory batch/snapshot; earlier conversation and compacted context are not retroactively erased",
+    "budgetBasis": "the session's current model context window in tokens multiplied by the visible budget ratio; discovered file bytes are only the demand side",
+    "modelApplyBoundary": "every request; the Resident session's own model selection (changed in that session) is honored live, Memory fixed mode applies to the next request, and unrelated sessions' model changes or the DSH global default never move the Resident route",
+    "memoryDeduplication": "workspace filenames: .dsh/memory first, then configured read directories; shadowed or archived names never reappear through activation; equal trimmed content is deduplicated secondarily",
+    "performanceBudgetsMs": {
+      "inventory": {
+        "cold": 2000,
+        "warm": 500
+      },
+      "dreamStatus": {
+        "cold": 500,
+        "warm": 100
+      },
+      "settings": {
+        "cold": 500,
+        "warm": 250
+      },
+      "routePreview": {
+        "cold": 2000,
+        "warm": 500
+      },
+      "history": {
+        "cold": 1000,
+        "warm": 500
+      },
+      "candidates": {
+        "cold": 1000,
+        "warm": 500
+      },
+      "dreamDelta": {
+        "cold": 2000,
+        "warm": 500
+      },
+      "dreamPage": {
+        "cold": 2000,
+        "warm": 250
+      }
+    },
+    "mutationLock": "refuse busy immediately; never break another process lock by age",
+    "searchDefaultLimit": 8,
+    "searchMaxLimit": 30,
+    "searchMinQueryChars": 2,
+    "searchLineMaxChars": 240,
+    "sessionCheckpointOwnedFrames": 128,
+    "retryScope": "failed preparation/delivery only; never replay a model turn or failed commit"
+  },
+  "storage": {
+    "homeDefaultDirectory": ".dsh",
+    "globalMemoryDirectory": "memory",
+    "settingsDirectory": "oh-my-bbff-memory",
+    "dreamingDirectory": ".dreaming",
+    "candidatesDirectory": ".candidates",
+    "historyDirectory": ".history",
+    "archiveDirectory": ".archive",
+    "residentWorkspaceDirectory": "dreaming",
+    "globalInstructionFile": "AGENTS.md",
+    "workspaceInstructionFile": "AGENTS.local.md",
+    "protectedWorkspaceInstructionFile": "AGENTS.md",
+    "mutationLockFile": "mutation.lock",
+    "managedSkillRelativePath": "skills/update-memory/SKILL.md",
+    "sessionReadCheckpointDirectory": "session-read-models"
+  },
+  "fields": {
+    "defaultMode": {
+      "type": "enum",
+      "default": "full",
+      "options": [
+        "full",
+        "routed"
+      ],
+      "group": "injection"
+    },
+    "injectEnabled": {
+      "type": "boolean",
+      "default": true,
+      "group": "injection"
+    },
+    "budgetMode": {
+      "type": "enum",
+      "default": "auto",
+      "options": [
+        "auto",
+        "fixed"
+      ],
+      "group": "injection"
+    },
+    "budgetWindowRatio": {
+      "type": "number",
+      "default": 0.1,
+      "min": 0.01,
+      "max": 0.5,
+      "unit": "percent",
+      "group": "injection"
+    },
+    "budgetFixedBytes": {
+      "type": "nullable-integer",
+      "default": null,
+      "min": 1,
+      "max": 134217728,
+      "unit": "bytes",
+      "group": "injection"
+    },
+    "workspaceMemoryDirs": {
+      "type": "string-list",
+      "default": [
+        ".dsh/memory",
+        ".opencode/memory",
+        ".agent/memory"
+      ],
+      "group": "directories"
+    },
+    "routeWindowTurns": {
+      "type": "integer",
+      "default": 3,
+      "min": 1,
+      "max": 20,
+      "group": "router"
+    },
+    "routeTopK": {
+      "type": "integer",
+      "default": 2,
+      "min": 1,
+      "max": 10,
+      "group": "router"
+    },
+    "routeMaxBytes": {
+      "type": "integer",
+      "default": 122880,
+      "min": 16384,
+      "max": 524288,
+      "unit": "bytes",
+      "group": "router"
+    },
+    "dreamEnabled": {
+      "type": "boolean",
+      "default": true,
+      "group": "dreaming"
+    },
+    "dreamAutoWake": {
+      "type": "boolean",
+      "default": true,
+      "group": "dreaming"
+    },
+    "wakeIntervalHours": {
+      "type": "number",
+      "default": 6,
+      "min": 0.016666666666666666,
+      "max": 8760,
+      "unit": "hours",
+      "group": "dreaming"
+    },
+    "retryAfterFailure": {
+      "type": "boolean",
+      "default": false,
+      "group": "dreaming"
+    },
+    "retryDelayMs": {
+      "type": "integer",
+      "default": 300000,
+      "min": 1000,
+      "max": 86400000,
+      "unit": "ms",
+      "group": "dreaming"
+    },
+    "retryMaxAttempts": {
+      "type": "integer",
+      "default": 1,
+      "min": 1,
+      "max": 20,
+      "group": "dreaming"
+    },
+    "includeSubagentSessions": {
+      "type": "boolean",
+      "default": false,
+      "group": "input"
+    },
+    "deltaMaxSessions": {
+      "type": "integer",
+      "default": 200,
+      "min": 1,
+      "max": 10000,
+      "group": "input"
+    },
+    "deltaMaxMessagesPerSession": {
+      "type": "integer",
+      "default": 120,
+      "min": 1,
+      "max": 10000,
+      "group": "input"
+    },
+    "deltaMaxBytesPerSession": {
+      "type": "integer",
+      "default": 98304,
+      "min": 1,
+      "max": 67108864,
+      "unit": "bytes",
+      "group": "input"
+    },
+    "deltaMaxBytesTotal": {
+      "type": "integer",
+      "default": 655360,
+      "min": 1,
+      "max": 134217728,
+      "unit": "bytes",
+      "group": "input"
+    },
+    "deltaManifestPageSize": {
+      "type": "integer",
+      "default": 40,
+      "min": 1,
+      "max": 10000,
+      "group": "input"
+    },
+    "dreamPageBytes": {
+      "type": "integer",
+      "default": 12288,
+      "min": 1,
+      "max": 1048576,
+      "unit": "bytes",
+      "group": "input"
+    },
+    "dreamWakeSessionLimit": {
+      "type": "integer",
+      "default": 30,
+      "min": 0,
+      "max": 10000,
+      "group": "input"
+    },
+    "dreamPromptMaxBytes": {
+      "type": "integer",
+      "default": 49152,
+      "min": 1024,
+      "max": 1048576,
+      "unit": "bytes",
+      "group": "input"
+    },
+    "candidatePageSize": {
+      "type": "integer",
+      "default": 40,
+      "min": 1,
+      "max": 1000,
+      "group": "input"
+    },
+    "residentModelMode": {
+      "type": "enum",
+      "default": "default",
+      "options": [
+        "default",
+        "fixed"
+      ],
+      "group": "model"
+    },
+    "residentProvider": {
+      "type": "string",
+      "default": "",
+      "maxLength": 256,
+      "group": "model"
+    },
+    "residentModel": {
+      "type": "string",
+      "default": "",
+      "maxLength": 256,
+      "group": "model"
+    },
+    "residentReasoningEffort": {
+      "type": "string",
+      "default": "",
+      "maxLength": 128,
+      "group": "model"
+    },
+    "schedulerTickMs": {
+      "type": "integer",
+      "default": 60000,
+      "min": 1000,
+      "max": 3600000,
+      "unit": "ms",
+      "group": "advanced"
+    },
+    "schedulerBootDelayMs": {
+      "type": "integer",
+      "default": 3000,
+      "min": 0,
+      "max": 3600000,
+      "unit": "ms",
+      "group": "advanced"
+    },
+    "leaseHeartbeatMs": {
+      "type": "integer",
+      "default": 60000,
+      "min": 1000,
+      "max": 3600000,
+      "unit": "ms",
+      "group": "advanced"
+    },
+    "leaseStaleMs": {
+      "type": "integer",
+      "default": 300000,
+      "min": 2000,
+      "max": 86400000,
+      "unit": "ms",
+      "group": "advanced"
+    },
+    "apiPendingPollMs": {
+      "type": "integer",
+      "default": 500,
+      "min": 250,
+      "max": 10000,
+      "unit": "ms",
+      "group": "advanced"
+    },
+    "apiReadBackgroundTimeoutMs": {
+      "type": "integer",
+      "default": 20000,
+      "min": 1000,
+      "max": 120000,
+      "unit": "ms",
+      "group": "advanced"
+    },
+    "sessionReadReuseMs": {
+      "type": "integer",
+      "default": 15000,
+      "min": 15000,
+      "max": 600000,
+      "unit": "ms",
+      "group": "advanced"
+    },
+    "sessionReadMaxRoots": {
+      "type": "integer",
+      "default": 32,
+      "min": 1,
+      "max": 512,
+      "group": "advanced"
+    },
+    "sessionReadCheckpointBytes": {
+      "type": "integer",
+      "default": 1048576,
+      "min": 8192,
+      "max": 16777216,
+      "unit": "bytes",
+      "group": "advanced"
+    },
+    "sessionReadMaxBytes": {
+      "type": "integer",
+      "default": 67108864,
+      "min": 1024,
+      "max": 268435456,
+      "unit": "bytes",
+      "group": "advanced"
+    },
+    "memoryPollMs": {
+      "type": "integer",
+      "default": 30000,
+      "min": 1000,
+      "max": 3600000,
+      "unit": "ms",
+      "group": "advanced"
+    },
+    "clockTickMs": {
+      "type": "integer",
+      "default": 1000,
+      "min": 250,
+      "max": 60000,
+      "unit": "ms",
+      "group": "advanced"
+    },
+    "changelogPageSize": {
+      "type": "integer",
+      "default": 20,
+      "min": 1,
+      "max": 1000,
+      "group": "advanced"
+    },
+    "memorySourceMaxBytes": {
+      "type": "integer",
+      "default": 16777216,
+      "min": 1,
+      "max": 134217728,
+      "unit": "bytes",
+      "group": "input"
+    },
+    "candidateMaxBytes": {
+      "type": "integer",
+      "default": 65536,
+      "min": 1,
+      "max": 16777216,
+      "unit": "bytes",
+      "group": "input"
+    },
+    "toolReadMaxBytes": {
+      "type": "integer",
+      "default": 524288,
+      "min": 1,
+      "max": 16777216,
+      "unit": "bytes",
+      "group": "advanced"
+    },
+    "toolWriteMaxBytes": {
+      "type": "integer",
+      "default": 524288,
+      "min": 1,
+      "max": 16777216,
+      "unit": "bytes",
+      "group": "advanced"
+    },
+    "httpBodyMaxBytes": {
+      "type": "integer",
+      "default": 1048576,
+      "min": 1024,
+      "max": 8388608,
+      "unit": "bytes",
+      "group": "advanced"
+    },
+    "errorHistoryLimit": {
+      "type": "integer",
+      "default": 20,
+      "min": 1,
+      "max": 1000,
+      "group": "advanced"
+    },
+    "errorMessageMaxChars": {
+      "type": "integer",
+      "default": 400,
+      "min": 1,
+      "max": 65536,
+      "group": "advanced"
+    },
+    "stageReasonMaxChars": {
+      "type": "integer",
+      "default": 1000,
+      "min": 1,
+      "max": 65536,
+      "group": "advanced"
+    },
+    "stageEvidenceMaxChars": {
+      "type": "integer",
+      "default": 4000,
+      "min": 1,
+      "max": 262144,
+      "group": "advanced"
+    },
+    "stageMaxBytesTotal": {
+      "type": "integer",
+      "default": 67108864,
+      "min": 1,
+      "max": 268435456,
+      "unit": "bytes",
+      "group": "advanced"
+    },
+    "stageMaxOps": {
+      "type": "integer",
+      "default": 200,
+      "min": 1,
+      "max": 10000,
+      "group": "advanced"
+    }
+  },
+  "structuralLimits": {
+    "idMaxChars": 160,
+    "diffMaxLines": 240,
+    "diffContextLines": 2
+  },
+  "promptTextMaxBytes": 1048576
+}

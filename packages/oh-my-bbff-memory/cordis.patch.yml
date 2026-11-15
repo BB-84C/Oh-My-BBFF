@@ -1,0 +1,34 @@
+# oh-my-BBFF memory — bundle patch.
+#
+# M1: a Host plugin that injects the global + workspace Markdown memory store as a
+# persistent full-resident baseline.
+# M2: `memory_*` / `agentsmd_*` tools plus the `update-memory` skill.
+# M3: the in-process Dreaming Resident (data-configured rolling wall clock/lease,
+# one persistent resident session, seven private dream tools, transactional snapshots,
+# history/archive, and explicit confirmation-bound operator actions). GET is read-only.
+# 0.4.0: per-root-session memory activation toggles (persisted in
+# $DSH_HOME/oh-my-bbff-memory/toggles.json, inherited by subagents), the
+# `?inventory=1` / `{action:'memory-toggle'}` API for the widget card, and the
+# widget `?dream=status` contract. No new required services.
+# 0.5.0: three-layer routed recall (native AGENTS.md only + generated router index,
+# deterministic per-turn top-K routing inside a byte budget, tool fallback), global
+# settings store at $DSH_HOME/oh-my-bbff-memory/settings.json, per-root-session mode
+# override, and the `?settings=1` / `{action:'memory-settings'}` /
+# `{action:'memory-mode'}` / `?route=preview` API. No new required services.
+#
+# `inject` must stay identical to `export const inject` in index.js. Only services
+# whose absence would make the plugin inert are required; the resident's own
+# services (agents, agentPresets, sessionQuery, sessionPersistence,
+# agentDefaultModel, sessionTitle, systemPrompt) are read through `ctx.get()` and
+# stay optional so the resident can degrade without disabling M1/M2.
+# The native `schedule` service is adopted through an optional child fiber
+# (lib/dreaming/adoption.js), so a profile that composes it after this plugin — or
+# reloads it — still gets one adopted Resident task. It must NOT be added here: a
+# required entry would make Memory inert in a profile without the schedule plugin.
+- insert:
+    - id: oh-my-bbff-memory
+      name: 'oh-my-bbff-memory'
+      inject:
+        - workingDirectory
+        - webServer
+        - tools

@@ -1,0 +1,31 @@
+{
+  "name": "oh-my-bbff",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Oh-My-BBFF — the plugin family for DeepSeek Harness: role-based team organization, memory that organizes itself, per-workspace tool scoping, and method skills.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BB-84C/Oh-My-BBFF.git"
+  },
+  "homepage": "https://github.com/BB-84C/Oh-My-BBFF#readme",
+  "bugs": {
+    "url": "https://github.com/BB-84C/Oh-My-BBFF/issues"
+  },
+  "keywords": [
+    "oh-my-bbff",
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "plugin",
+    "agent-team"
+  ],
+  "engines": {
+    "node": ">=24.9"
+  },
+  "packageManager": "pnpm@10.12.4",
+  "scripts": {
+    "check": "node packages/oh-my-bbff-widgets/scripts/check-package.mjs && node packages/oh-my-bbff-team/scripts/check-package.mjs && node packages/oh-my-bbff-team/scripts/check-prompt-stability.mjs && node packages/oh-my-bbff-memory/scripts/check-package.mjs && node packages/oh-my-bbff-scope/scripts/check-package.mjs && node packages/oh-my-bbff-superpowers/scripts/dsh-runtime.mjs && node packages/oh-my-bbff/scripts/check-package.mjs"
+  }
+}

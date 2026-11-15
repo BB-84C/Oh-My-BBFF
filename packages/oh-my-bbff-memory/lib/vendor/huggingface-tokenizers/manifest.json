@@ -1,0 +1,20 @@
+{
+  "name": "@huggingface/tokenizers",
+  "version": "0.2.0",
+  "license": "Apache-2.0",
+  "sourceUrl": "https://registry.npmjs.org/@huggingface/tokenizers/-/tokenizers-0.2.0.tgz",
+  "files": [
+    {
+      "path": "tokenizers.mjs",
+      "upstreamPath": "dist/tokenizers.mjs",
+      "bytes": 98937,
+      "sha256": "1c4a848f86156201c033d6cd08c4cf81ae1088552acec3367f31ef086edf5af0"
+    },
+    {
+      "path": "LICENSE",
+      "upstreamPath": "LICENSE",
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "name": "oh-my-bbff",
+  "version": "1.0.0",
+  "engines": {
+    "dsh": ">=0.2.2-rc.2"
+  },
+  "type": "module",
+  "description": "Oh-My-BBFF — install the whole family for DeepSeek Harness in one step: Widgets (the family root and the BBFF panel), Team, Memory, Scope and Superpowers, pinned to one release.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BB-84C/Oh-My-BBFF.git",
+    "directory": "packages/oh-my-bbff"
+  },
+  "homepage": "https://github.com/BB-84C/Oh-My-BBFF#readme",
+  "bugs": {
+    "url": "https://github.com/BB-84C/Oh-My-BBFF/issues"
+  },
+  "keywords": [
+    "oh-my-bbff",
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "plugin",
+    "bundle",
+    "agent-team"
+  ],
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "prepack": "node scripts/check-package.mjs",
+    "check": "node scripts/check-package.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "oh-my-bbff-widgets": "1.0.0",
+    "oh-my-bbff-team": "1.0.0",
+    "oh-my-bbff-memory": "1.0.0",
+    "oh-my-bbff-scope": "1.0.0",
+    "oh-my-bbff-superpowers": "1.0.0"
+  }
+}

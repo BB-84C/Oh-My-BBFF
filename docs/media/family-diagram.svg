@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-label="Oh-My-BBFF family diagram">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#C9D6EA"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1200" height="620" fill="#F7FAFF"/>
+  <text x="48" y="62" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="30" font-weight="700" fill="#17233A">Oh-My-BBFF family</text>
+  <text x="48" y="92" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="16" fill="#5A6B85">One DSH profile, one family root, modules that register through one contract</text>
+
+  <rect x="48" y="250" width="230" height="96" rx="14" fill="#FFFFFF" stroke="#1B4B8F" stroke-width="2"/>
+  <text x="163" y="288" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#1B4B8F">DeepSeek Harness</text>
+  <text x="163" y="316" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#5A6B85">native teams and tools</text>
+
+  <line x1="278" y1="298" x2="366" y2="298" stroke="#C9D6EA" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="368" y="228" width="300" height="140" rx="16" fill="#FFFFFF" stroke="#1B4B8F" stroke-width="2.5"/>
+  <text x="518" y="266" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="21" font-weight="700" fill="#1B4B8F">oh-my-bbff-widgets</text>
+  <text x="518" y="294" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#5A6B85">family root</text>
+  <text x="518" y="318" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#5A6B85">BBFF panel and BBFF settings</text>
+  <text x="518" y="342" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#5A6B85">cards, notes, language files</text>
+
+  <line x1="668" y1="298" x2="742" y2="298" stroke="#C9D6EA" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="744" y="118" width="408" height="86" rx="14" fill="#FFFFFF" stroke="#C9D6EA" stroke-width="1.5"/>
+  <text x="768" y="152" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#17233A">oh-my-bbff-team</text>
+  <text x="768" y="178" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#5A6B85">roles, Lead doctrine, model routes</text>
+
+  <rect x="744" y="218" width="408" height="86" rx="14" fill="#FFFFFF" stroke="#C9D6EA" stroke-width="1.5"/>
+  <text x="768" y="252" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#17233A">oh-my-bbff-memory</text>
+  <text x="768" y="278" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#5A6B85">routed memory and the Dreaming Resident</text>
+
+  <rect x="744" y="318" width="408" height="86" rx="14" fill="#FFFFFF" stroke="#C9D6EA" stroke-width="1.5"/>
+  <text x="768" y="352" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#17233A">oh-my-bbff-scope</text>
+  <text x="768" y="378" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#5A6B85">per-workspace availability rules</text>
+
+  <rect x="744" y="418" width="408" height="86" rx="14" fill="#FFFFFF" stroke="#C9D6EA" stroke-width="1.5"/>
+  <text x="768" y="452" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#17233A">oh-my-bbff-superpowers</text>
+  <text x="768" y="478" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#5A6B85">eight method skills for the whole team</text>
+
+  <rect x="48" y="438" width="288" height="120" rx="16" fill="#FFFFFF" stroke="#1B4B8F" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="192" y="476" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#1B4B8F">oh-my-bbff-sdk</text>
+  <text x="192" y="502" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#5A6B85">public contract used by the modules</text>
+  <text x="192" y="526" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#5A6B85">host registry, UI cards, settings, locale</text>
+
+  <line x1="336" y1="470" x2="742" y2="161" stroke="#C9D6EA" stroke-width="1.5" stroke-dasharray="5 5"/>
+  <line x1="336" y1="486" x2="742" y2="261" stroke="#C9D6EA" stroke-width="1.5" stroke-dasharray="5 5"/>
+  <line x1="336" y1="504" x2="742" y2="361" stroke="#C9D6EA" stroke-width="1.5" stroke-dasharray="5 5"/>
+  <line x1="336" y1="522" x2="742" y2="461" stroke="#C9D6EA" stroke-width="1.5" stroke-dasharray="5 5"/>
+
+  <text x="48" y="596" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#5A6B85">Each module is also installable on its own. Widgets is required for the cards and settings page.</text>
+</svg>

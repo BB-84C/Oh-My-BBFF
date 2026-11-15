@@ -1,0 +1,142 @@
+{
+  "version": 2,
+  "basicGroups": [
+    {
+      "id": "cards",
+      "title": "settings.group.cards"
+    },
+    {
+      "id": "goal",
+      "title": "settings.group.goal"
+    },
+    {
+      "id": "notes",
+      "title": "settings.group.notes"
+    }
+  ],
+  "advancedGroups": [
+    {
+      "id": "performance",
+      "title": "settings.group.performance"
+    },
+    {
+      "id": "limits",
+      "title": "settings.group.limits"
+    },
+    {
+      "id": "appearance",
+      "title": "settings.group.appearance"
+    }
+  ],
+  "fields": {
+    "refreshIntervalMs": {
+      "importance": "advanced",
+      "advancedGroup": "performance"
+    },
+    "historyReuseIntervalMs": {
+      "importance": "advanced",
+      "advancedGroup": "performance"
+    },
+    "stateMaxSessions": {
+      "importance": "advanced",
+      "advancedGroup": "performance"
+    },
+    "stateRouteMaxEntries": {
+      "importance": "advanced",
+      "advancedGroup": "performance"
+    },
+    "showDiagnostics": {
+      "importance": "advanced",
+      "advancedGroup": "appearance"
+    },
+    "autoOpenOnGoal": {
+      "importance": "basic",
+      "basicGroup": "goal",
+      "basicOrder": 2
+    },
+    "noteMaxLength": {
+      "importance": "basic",
+      "basicGroup": "notes",
+      "basicOrder": 3
+    },
+    "notesMaxItems": {
+      "importance": "basic",
+      "basicGroup": "notes",
+      "basicOrder": 3
+    },
+    "goalObjectiveMaxLength": {
+      "importance": "advanced",
+      "advancedGroup": "limits"
+    },
+    "snapshotMaxRoots": {
+      "importance": "advanced",
+      "advancedGroup": "performance"
+    },
+    "snapshotMaxTools": {
+      "importance": "advanced",
+      "advancedGroup": "performance"
+    },
+    "snapshotMaxBytes": {
+      "importance": "advanced",
+      "advancedGroup": "performance"
+    },
+    "cardPreferences": {
+      "importance": "basic",
+      "basicGroup": "cards",
+      "basicOrder": 1
+    },
+    "settingsSectionOrder": {
+      "importance": "advanced",
+      "advancedGroup": "appearance"
+    },
+    "displayLabels": {
+      "importance": "advanced",
+      "advancedGroup": "appearance"
+    }
+  },
+  "effects": {
+    "refreshIntervalMs": "settings.effect.refreshIntervalMs",
+    "historyReuseIntervalMs": "settings.effect.historyReuseIntervalMs",
+    "stateMaxSessions": "settings.effect.stateMaxSessions",
+    "stateRouteMaxEntries": "settings.effect.stateRouteMaxEntries",
+    "showDiagnostics": "settings.effect.showDiagnostics",
+    "autoOpenOnGoal": "settings.effect.autoOpenOnGoal",
+    "noteMaxLength": "settings.effect.noteMaxLength",
+    "notesMaxItems": "settings.effect.notesMaxItems",
+    "goalObjectiveMaxLength": "settings.effect.goalObjectiveMaxLength",
+    "snapshotMaxRoots": "settings.effect.snapshotMaxRoots",
+    "snapshotMaxTools": "settings.effect.snapshotMaxTools",
+    "snapshotMaxBytes": "settings.effect.snapshotMaxBytes",
+    "cardPreferences": "settings.effect.cardPreferences",
+    "settingsSectionOrder": "settings.effect.settingsSectionOrder",
+    "displayLabels": "settings.effect.displayLabels"
+  },
+  "cardEffects": {
+    "visible": "settings.effect.card.visible",
+    "order": "settings.effect.card.order",
+    "defaultHeight": "settings.effect.card.defaultHeight"
+  },
+  "labels": {
+    "basicsTitle": "settings.presentation.basicsTitle",
+    "advancedTitle": "settings.presentation.advancedTitle",
+    "advancedChanged": "settings.presentation.advancedChanged",
+    "advancedCount": "settings.presentation.advancedCount",
+    "helpLabel": "settings.presentation.helpLabel",
+    "cardLayoutLabel": "settings.presentation.cardLayoutLabel",
+    "cardSummary": "settings.presentation.cardSummary",
+    "defaultPrefix": "settings.presentation.defaultPrefix",
+    "valueOn": "settings.presentation.valueOn",
+    "valueOff": "settings.presentation.valueOff",
+    "automatic": "settings.presentation.automatic",
+    "contractDefault": "settings.presentation.contractDefault",
+    "missingValue": "settings.presentation.missingValue",
+    "resetLayoutLabel": "settings.presentation.resetLayoutLabel",
+    "resetLayoutEffect": "settings.presentation.resetLayoutEffect",
+    "saveOrderLabel": "settings.presentation.saveOrderLabel",
+    "resetSettingsLabel": "settings.presentation.resetSettingsLabel",
+    "resetSettingsEffect": "settings.presentation.resetSettingsEffect",
+    "editLabelEffect": "settings.presentation.editLabelEffect",
+    "missingEffectNotice": "settings.presentation.missingEffectNotice",
+    "invalidGroupsNotice": "settings.presentation.invalidGroupsNotice"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "name": "oh-my-bbff-team",
+  "version": "1.0.0",
+  "engines": {
+    "dsh": ">=0.2.2-rc.2"
+  },
+  "type": "module",
+  "description": "Oh-My-BBFF Team — role-based organization of subagents and Team members for DeepSeek Harness: role catalog, orchestrator/leader doctrine, per-role permissions and model routes.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BB-84C/Oh-My-BBFF.git",
+    "directory": "packages/oh-my-bbff-team"
+  },
+  "homepage": "https://github.com/BB-84C/Oh-My-BBFF#readme",
+  "bugs": {
+    "url": "https://github.com/BB-84C/Oh-My-BBFF/issues"
+  },
+  "keywords": [
+    "oh-my-bbff",
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "plugin",
+    "agent-team",
+    "subagents",
+    "roles"
+  ],
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./catalog": "./lib/catalog.js",
+    "./icon": "./icon.svg",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json",
+    "./client": "./client.js"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib/",
+    "locale/*.json",
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md",
+    "CHANGELOG.md",
+    "scripts/check-package.mjs",
+    "scripts/check-prompt-stability.mjs"
+  ],
+  "scripts": {
+    "prepack": "node scripts/check-package.mjs"
+  },
+  "bbff": {
+    "contract": 1,
+    "id": "team",
+    "title": "Oh-My-BBFF Team"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}

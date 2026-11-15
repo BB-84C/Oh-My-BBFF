@@ -1,0 +1,8 @@
+# Oh-My-BBFF Hello — minimal example module.
+#
+# The host half registers the family descriptor; the client half (client.js)
+# registers one status card and one BBFF settings section.
+- insert:
+    - id: oh-my-bbff-hello
+      name: 'oh-my-bbff-hello'
+      inject: []

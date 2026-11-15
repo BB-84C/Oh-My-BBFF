@@ -1,0 +1,5 @@
+- insert:
+    - id: oh-my-bbff-superpowers
+      name: 'oh-my-bbff-superpowers'
+      inject:
+        - skills

@@ -1,0 +1,13 @@
+# oh-my-BBFF widgets — bundle patch.
+#
+# The first widget is the goal board: a Host route over the persisted goal state,
+# the agent's `todos` projection, and this plugin's own human todo file.
+- insert:
+    - id: oh-my-bbff-widgets
+      name: 'oh-my-bbff-widgets'
+      inject:
+        - webServer
+        - agents
+        - goals
+        - sessionQuery
+        - tools

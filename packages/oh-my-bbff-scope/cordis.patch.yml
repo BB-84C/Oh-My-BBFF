@@ -1,0 +1,6 @@
+# Oh-My-BBFF Scope — no model tools. All editing is through settings/API.
+- insert:
+    - id: oh-my-bbff-scope
+      name: 'oh-my-bbff-scope'
+      inject:
+        - tools

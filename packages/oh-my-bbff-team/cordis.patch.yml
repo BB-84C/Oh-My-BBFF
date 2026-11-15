@@ -1,0 +1,10 @@
+# Oh-My-BBFF Team — bundle patch.
+# Host plugin: role catalog, bbff_team_* tools, per-agent doctrine/enforcement.
+# `inject` must stay identical to `export const inject` in index.js; every other
+# service (agents, agentTeams, subagents, llm, skills, webServer, orchestrator)
+# is optional and read lazily.
+- insert:
+    - id: oh-my-bbff-team
+      name: 'oh-my-bbff-team'
+      inject:
+        - tools

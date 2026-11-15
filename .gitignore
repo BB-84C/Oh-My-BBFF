@@ -1,0 +1,28 @@
+# Dependencies and installers
+node_modules/
+.pnpm-store/
+
+# Build, release and pack outputs
+dist/
+*.tgz
+*.tar.gz
+*.log
+
+# Test and tool caches
+coverage/
+.cache/
+.tmp/
+.test-artifacts/
+*.tsbuildinfo
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Local agent/tool state
+.dsh/
+.agents/
+.opencode/

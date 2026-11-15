@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "packageName": "oh-my-bbff-superpowers",
+  "version": "1.0.0",
+  "skills": [
+    "bbff-team-leading",
+    "bbff-team-member",
+    "brainstorming",
+    "independent-review",
+    "systematic-debugging",
+    "test-driven-development",
+    "verification-before-completion",
+    "writing-plans"
+  ],
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 3974,
+      "sha256": "ff8f3be6c67eb1f3daa0bdc16366ff11bca38c81b5f4b7bcde1523e5aef4a395"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2984,
+      "sha256": "2338da3cf352fdf86c0892e2394fb21b4cfa15b12b340558927c18ba241278c0"
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "bytes": 9151,
+      "sha256": "d419b710e4e974d05e8e0282113f4709e829943db2c7462034dee8eaaf94dee4"
+    },
+    {
+      "path": "cordis.patch.yml",
+      "bytes": 111,
+      "sha256": "ae3c6c920317c75e62a66ca567cf91721cfc5f3bd9c40d19e951c62e8132088c"
+    },
+    {
+      "path": "icon.svg",
+      "bytes": 397,
+      "sha256": "600de53ca125b23e374c93239084cb6755dd3c14225878ccbfe272daec690d3d"
+    },
+    {
+      "path": "index.js",
+      "bytes": 389,
+      "sha256": "9b46d2a46b77e790b37346c498ca5c01b1ddf863cdbabeef383245655adb6c65"
+    },
+    {
+      "path": "lib/content.js",
+      "bytes": 1387,
+      "sha256": "0607c19bc40affe907c1a1cedc752ab44a335dd42eb0e53ec59ccda43a57168a"
+    },
+    {
+      "path": "lib/provider.js",
+      "bytes": 1818,
+      "sha256": "78c679d4b6b8a7a6028152e82171b73c0aee50c6eb361d99e9b9932a3b050312"
+    },
+    {
+      "path": "locale/en.json",
+      "bytes": 191,
+      "sha256": "ad77d1f94857a2be2b288f8dca5a140355fd5c8eadfb71ff43472891988a35b0"
+    },
+    {
+      "path": "locale/zh.json",
+      "bytes": 172,
+      "sha256": "334a1296c65b82db4b010b5f94fc467ca2e2e3071accc3f92b1b4e6f76b45dce"
+    },
+    {
+      "path": "package.json",
+      "bytes": 1445,
+      "sha256": "855d5125cafeb60b8f2300f26544cf0c817fdc61b38dad2e3b1402f712c81762"
+    },
+    {
+      "path": "scripts/check-package.mjs",
+      "bytes": 1421,
+      "sha256": "a62122f11bc494566fa5c4b3ea571c4ba72d6ca5cb497637b6bdbaeaeb2bc4b1"
+    },
+    {
+      "path": "scripts/dsh-runtime.mjs",
+      "bytes": 3048,
+      "sha256": "deb24bbd778c01950bc056012298fa2b8358fcb047af9d521f7bfbea305564ce"
+    },
+    {
+      "path": "scripts/package-gate.js",
+      "bytes": 7450,
+      "sha256": "109d8e64f5d1fd5c6bc80ae60b38f90c26a1b5169393a66e740202a785503e96"
+    },
+    {
+      "path": "skills/bbff-team-leading/SKILL.md",
+      "bytes": 9591,
+      "sha256": "205df109ebff5391a8452b82e3193de458f58907d2d617e2a65cdf3d795cb8d6"
+    },
+    {
+      "path": "skills/bbff-team-leading/references/briefing.md",
+      "bytes": 3101,
+      "sha256": "24f2ecdeaa696fce7a86c2ed9d1943dc168b7e958300420cb70dcd84a4c96e25"
+    },
+    {
+      "path": "skills/bbff-team-leading/references/live-acceptance.md",
+      "bytes": 3649,
+      "sha256": "8a541b2bd78eb0d650c06ff135c6696c5ded7f0cd2af620266e3ed977ddfb7c1"
+    },
+    {
+      "path": "skills/bbff-team-leading/references/member-triage.md",
+      "bytes": 8049,
+      "sha256": "7f03e23fd0537c8f42a31f1f4ca4898208b77a493f40c56d62e1e2fb527598e5"
+    },
+    {
+      "path": "skills/bbff-team-leading/references/reporting.md",
+      "bytes": 2924,
+      "sha256": "a4cd77caa8e29e7fb1835f727c2f99b1cc7487fa45bd8a22483a013e20b743ec"
+    },
+    {
+      "path": "skills/bbff-team-member/SKILL.md",
+      "bytes": 3277,
+      "sha256": "e5e5173f1b1d995677173e23a11a6fda2b2f719d0efc28351243eff7bbb81b24"
+    },
+    {
+      "path": "skills/brainstorming/SKILL.md",
+      "bytes": 2891,
+      "sha256": "1ea83642c1ac18145d80ddc4b36fb25ef3b93135d6dd7c6e1d099e0a10ba2d95"
+    },
+    {
+      "path": "skills/independent-review/SKILL.md",
+      "bytes": 2410,
+      "sha256": "b94920784050dc0562ff2679d79728000dfdc4a0019392528148de40ce29db89"
+    },
+    {
+      "path": "skills/independent-review/reviewer-prompt.md",
+      "bytes": 602,
+      "sha256": "ed81508b7c3077dd757ed1322739f779640b29ff73ba95b54e1df249f3c9e205"
+    },
+    {
+      "path": "skills/systematic-debugging/SKILL.md",
+      "bytes": 2805,
+      "sha256": "13c5fa98b58caaf4b7c33d844c44f84817920b4566eda099bb2653c358bc9314"
+    },
+    {
+      "path": "skills/systematic-debugging/condition-based-waiting.md",
+      "bytes": 3314,
+      "sha256": "218f25d0da75ab77c8d3b79b8ed295801a22c4f029fbe559c38f1c8aafa0e9e2"
+    },
+    {
+      "path": "skills/systematic-debugging/defense-in-depth.md",
+      "bytes": 876,
+      "sha256": "acb4185acba949e82054c19f3ba9debf092970f2e98c373e4f6c5fae12adc322"
+    },
+    {
+      "path": "skills/systematic-debugging/root-cause-tracing.md",
+      "bytes": 1004,
+      "sha256": "7b2b02ae48d7f478786b50e9e486c081c89e1c7fbd7b308673e0dafd74de5558"
+    },
+    {
+      "path": "skills/test-driven-development/SKILL.md",
+      "bytes": 3335,
+      "sha256": "4f00a9014e1d8d1e5065309954a830e9d219fc07acd9ba5ea466a4694e14d470"
+    },
+    {
+      "path": "skills/test-driven-development/testing-anti-patterns.md",
+      "bytes": 6910,
+      "sha256": "3ebdd9ec156921d9ab0024d3c02db76bebd4ac584598963fb6e24dff72266c18"
+    },
+    {
+      "path": "skills/verification-before-completion/SKILL.md",
+      "bytes": 3700,
+      "sha256": "8c321ef2bea31db2b47fcfc586ad9de83ec3fabefd0b5dac9b8d427f5f364019"
+    },
+    {
+      "path": "skills/verification-before-completion/references/bbff-evidence.md",
+      "bytes": 3488,
+      "sha256": "bcf71b2890671dabe0c585ce50eb7dc5a59e0a3972bdc5b9ad6a1d102115c805"
+    },
+    {
+      "path": "skills/writing-plans/SKILL.md",
+      "bytes": 11993,
+      "sha256": "5b35a3022d2c23e80e7011979ef0a6efa061e760fc351a7bd447a35a35532615"
+    }
+  ]
+}
