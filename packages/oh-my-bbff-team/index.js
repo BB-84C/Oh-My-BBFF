@@ -327,8 +327,29 @@ export function apply(ctx, config = {}) {
         const root = await rootContext.resolve(sessionId)
         const rootId = root.resolution.rootSessionId
         if (!root.resolution.resolved) return json(res, 400, { ok: false, error: root.resolution.reason, rootResolution: root })
-        const mode = sessionModes.set(rootId, String(body.mode || ''))
-        return json(res, 200, { ok: true, rootId, mode })
+        const requested = String(body.mode || '')
+        if (!SESSION_MODES.includes(requested)) return json(res, 400, { ok: false, error: 'mode must be one of ' + SESSION_MODES.join(', ') })
+        try { sessionModes.assertReadable() } catch (error) { return json(res, 409, { ok: false, error: String(error?.message || error), mode: null }) }
+        // Team leader / Orchestrator are the native per-root Agent Teams selection: switch it first and
+        // store BBFF's mode only after the native call succeeded. auto and off leave the native selection alone.
+        const nativeEnabled = requested === 'leader' ? true : requested === 'orchestrator' ? false : null
+        let native = { changed: false, enabled: null }
+        if (nativeEnabled !== null) {
+          const teams = get('agentTeams'), current = sessionModes.get(rootId)
+          if (!teams || typeof teams.setEnabled !== 'function' || typeof teams.isEnabled !== 'function') return json(res, 503, { ok: false, rootId, mode: current, error: 'The native Agent Teams service is unavailable, so ' + requested + ' cannot be selected; the session mode was not changed.' })
+          const rootAgent = registry && typeof registry.get === 'function' ? registry.get(rootId) : undefined
+          if (!rootAgent) return json(res, 409, { ok: false, rootId, mode: current, error: 'The root conversation is not loaded; open it to switch to ' + requested + ' (the native Agent Teams selection needs the live root). The session mode was not changed.' })
+          const before = teams.isEnabled(rootAgent) === true
+          try { await teams.setEnabled(rootAgent, nativeEnabled) }
+          catch (error) {
+            let after = null
+            try { after = teams.isEnabled(rootAgent) === true } catch {}
+            return json(res, 502, { ok: false, rootId, mode: current, native: { requested: nativeEnabled, enabled: after }, error: 'Switching native Agent Teams failed: ' + String(error?.message || error) + '. The session mode was not changed.' })
+          }
+          native = { changed: before !== nativeEnabled, enabled: teams.isEnabled(rootAgent) === true }
+        }
+        const mode = sessionModes.set(rootId, requested)
+        return json(res, 200, { ok: true, rootId, mode, native })
       }
       if (action === 'effective-catalog') {
         const explicit = body.cwd || url.searchParams.get('cwd') || ''

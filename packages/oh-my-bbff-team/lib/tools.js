@@ -13,7 +13,7 @@
 import { randomUUID } from 'node:crypto'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { roleTitle, routeText } from './catalog.js'
-import { classify } from './classify.js'
+import { classify, assertPosition, positionRefusal } from './classify.js'
 import { preflightModel, routeOptions, bindingRouteFields, routeForBinding, sameModelIdentity } from './models.js'
 import { normalizeTeamSettings, teamCapacity, teamDepthCapacity, DEFAULT_TEAM_SETTINGS } from './team-settings.js'
 import { nativeSubagentProvider } from './dsh-adapter.js'
@@ -249,8 +249,7 @@ export function createTeamTools(ctx, { getCatalog, bindings, enforcer, logger, s
       return serializeHire(caller.id, async () => {
       exec.signal?.throwIfAborted?.()
       const cls = classify(caller, get, settings())
-      if (cls.position === 'solo-root') throw new Error('Agent Teams is off in this conversation; turn on "Use Agent Teams" in the model menu to hire members, or use bbff_team_dispatch for one-shot role children')
-      if (cls.position !== 'lead') throw new Error('only the Team Lead may hire members')
+      if (cls.position !== 'lead') throw positionRefusal(cls, 'hire members', { alternative: cls.position === 'solo-root' ? 'Without Agent Teams, use bbff_team_dispatch for one-shot role children.' : '' })
       bindings.assertReadable?.()
       sessionModes?.assertReadable?.()
       const mode = sessionModes ? sessionModes.get(caller.id) : 'auto'
@@ -322,7 +321,7 @@ export function createTeamTools(ctx, { getCatalog, bindings, enforcer, logger, s
     async execute(args, exec) {
       const caller = exec.agent
       if (!caller) throw new Error('bbff_team_assign requires a calling agent')
-      if (classify(caller, get, settings()).position !== 'lead') throw new Error('only the Team Lead may assign roles (turn on "Use Agent Teams" in this conversation)')
+      assertPosition(caller, get, settings(), 'assign roles')
       const name = String(args.name)
       const member = nativeTree.childrenOf(caller).find((entry) => entry.name === name || entry.id === name)
       if (!member) throw new Error(`no teammate or other agent named "${name}" among the agents you started (bbff_team_roster shows names)`)
@@ -405,7 +404,7 @@ export function createTeamTools(ctx, { getCatalog, bindings, enforcer, logger, s
   })
   const teamActivity = defineTool({
     name: 'bbff_team_activity',
-    description: 'Team Lead only: read a member or descendant child’s recent committed events as recorded, with Host time, seq/time/age, call/result pairing and bounded field excerpts. No verdict or health classification.',
+    description: 'Tree root only (the Team Lead, or an Orchestrator root conversation with Agent Teams off): read a member or descendant child’s recent committed events as recorded, with Host time, seq/time/age, call/result pairing and bounded field excerpts. No verdict or health classification.',
     parameters: {
       target: { type: 'string', required: true, description: 'Teammate name, a descendant name/path as bbff_team_roster shows it (e.g. reviewer/checker), or a session id within the Lead tree.' },
       limit: { type: 'integer', description: 'Positive event count. Uses activityDefaultLimit (shipped 10), capped by activityMaxLimit (shipped 50). Field excerpts use activityPreviewChars (shipped 400); original chars/bytes and truncation are reported.' },
@@ -419,7 +418,7 @@ export function createTeamTools(ctx, { getCatalog, bindings, enforcer, logger, s
   })
   const teamJobKill = defineTool({
     name: 'bbff_team_job_kill',
-    description: 'Team Lead only: request cancellation of a known member/child background job. Verifies its native owner within the permitted target sessions, forwards reason, and returns owner plus requested/already-finished. Does not interrupt the whole turn.',
+    description: 'Tree root only (the Team Lead, or an Orchestrator root conversation with Agent Teams off): request cancellation of a known member/child background job. Verifies its native owner within the permitted target sessions, forwards reason, and returns owner plus requested/already-finished. Does not interrupt the whole turn.',
     parameters: {
       jobId: { type: 'string', required: true, description: 'Job id from the target activity window (bbff_team_activity).' },
       target: { type: 'string', description: 'Optional teammate/child the job should belong to; narrows the evidence search.' },

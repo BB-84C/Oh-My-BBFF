@@ -2,7 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { classify } from './classify.js'
+import { classify, assertPosition, positionRemedy, TREE_ROOT_POSITIONS } from './classify.js'
 import { routeText } from './catalog.js'
 import { routeForBinding, resolveBindingModel } from './models.js'
 import { createReportCheckpoints, REPORT_PLACEHOLDER } from './report-checkpoints.js'
@@ -90,16 +90,12 @@ export function createTeamOps(ctx, { bindings, getCatalog, getTeamSettings = () 
   const idle = (member, agent) => member.status !== 'running' && agent?.status !== 'running'
   const assertActive = (caller) => {
     if (!caller) throw new Error('a calling agent is required')
-    if (classify(caller, get, getTeamSettings()).position === 'foreign') throw new Error('Oh-My-BBFF Team yields this session to another orchestration plugin')
+    const cls = classify(caller, get, getTeamSettings())
+    if (cls.position === 'foreign') throw new Error(positionRemedy(cls))
   }
-  const assertLead = (caller) => {
-    assertActive(caller)
-    if (classify(caller, get, getTeamSettings()).position !== 'lead') throw new Error('only the Team Lead may compact members')
-  }
-  const assertLeadAction = (caller, action) => {
-    assertActive(caller)
-    if (classify(caller, get, getTeamSettings()).position !== 'lead') throw new Error('only the Team Lead may ' + action)
-  }
+  // Lead-only actions; tree-root actions (activity, job kill) also allow an Orchestrator root (TREE_ROOT_POSITIONS).
+  const assertLead = (caller) => assertPosition(caller, get, getTeamSettings(), 'compact members')
+  const assertLeadAction = (caller, action, options) => assertPosition(caller, get, getTeamSettings(), action, options)
   const activity = createActivity({ get, getSettings: getTeamSettings, logger: ctx.logger, now: Date.now, ledger, statOf })
   const bindingDiagnostics = new Map()
   function recordBindingDiagnostic(sessionId, issue) {
@@ -321,7 +317,9 @@ export function createTeamOps(ctx, { bindings, getCatalog, getTeamSettings = () 
     const capacity = teamCapacity(get, getTeamSettings())
     const lead = nativeTree.leadOf(caller)
     if (!lead) return { team: false, members: [], idleByRole: {}, reason: 'This conversation is not in a live subagent tree', ...capacity }
-    const teamMode = classify(lead, get, getTeamSettings()).position === 'lead'
+    const rootClass = classify(lead, get, getTeamSettings()), teamMode = rootClass.position === 'lead'
+    // Why Team mode is off, so an agent can tell the user what to do (e.g. turn on Use Agent Teams).
+    const teamState = teamMode ? { position: 'lead' } : { position: rootClass.position, reason: rootClass.reason, remedy: positionRemedy(rootClass) }
     const catalog = getCatalog(caller), currentSettings = normalizeTeamSettings(getTeamSettings())
     // Core members (member bindings) get full rows; outsourced agents (one-shot dispatches, unbound
     // native subagents, agents started by members) get one bounded compact row each, newest first.
@@ -370,7 +368,7 @@ export function createTeamOps(ctx, { bindings, getCatalog, getTeamSettings = () 
     const turnEndUnavailable = rows.filter(row => row.lastTurnEnd?.state === 'unavailable').length
     const turnEndPartSummary = { status: turnEndPending ? 'pending' : turnEndUnavailable ? 'partial' : 'ready', durationMs: performance.now()-started, pendingMembers: turnEndPending, okMembers: turnEndOk, unavailableMembers: turnEndUnavailable, reason: turnEndPending ? 'Last turn summaries are queued or loading in the background' : turnEndUnavailable ? 'Some summaries are unavailable; see each lastTurnEnd.reason' : 'Every member has a recorded native turn-end fact' }
     const hydrationPart = { status: rows.some(row=>row.pending) ? 'pending' : 'ready', queued: nativeTree.diagnostics().background.queued, hydrating: null, reason: rows.some(row=>row.pending) ? 'Cold members are being hydrated by the serial background queue' : 'Every member fact is cached' }
-    return { team: teamMode, lead: { name: nativeTree.nameOf(lead) || String(lead.id), sessionId: String(lead.id), outsourcedCount: view.lead?.outsourcedCount ?? 0, outsourcedDescendants: view.lead?.outsourcedDescendants ?? 0 }, members: rows, idleByRole, memberCount: rows.length, outsourced, outsourcedCount: view.counts.outsourced, outsourcedOmitted: view.counts.outsourcedOmitted, ...(view.partial ? { outsourcedPartial: view.partial } : {}), refreshWait, parts: { roster: { status: 'ready', durationMs: performance.now()-started, reason: 'Native subagent catalog of the Lead plus cached role bindings: core members as full rows; outsourced agents of the whole tree compactly (settings.rosterOutsourcedLimit)' }, sessions: { status: rows.some(row=>row.pending) ? 'pending' : 'ready', durationMs: performance.now()-started, reason: rows.some(row=>row.pending) ? 'Session facts are loading in background; pending is not empty' : 'Per-member normalized facts have settled' }, turnEnd: turnEndPartSummary, hydration: hydrationPart }, bindingRetention: bindings.diagnostics?.() || null, activeFormation: bindings.getActiveFormation?.(String(lead.id)) || null, ...capacity }
+    return { team: teamMode, teamState, lead: { name: nativeTree.nameOf(lead) || String(lead.id), sessionId: String(lead.id), outsourcedCount: view.lead?.outsourcedCount ?? 0, outsourcedDescendants: view.lead?.outsourcedDescendants ?? 0 }, members: rows, idleByRole, memberCount: rows.length, outsourced, outsourcedCount: view.counts.outsourced, outsourcedOmitted: view.counts.outsourcedOmitted, ...(view.partial ? { outsourcedPartial: view.partial } : {}), refreshWait, parts: { roster: { status: 'ready', durationMs: performance.now()-started, reason: 'Native subagent catalog of the Lead plus cached role bindings: core members as full rows; outsourced agents of the whole tree compactly (settings.rosterOutsourcedLimit)' }, sessions: { status: rows.some(row=>row.pending) ? 'pending' : 'ready', durationMs: performance.now()-started, reason: rows.some(row=>row.pending) ? 'Session facts are loading in background; pending is not empty' : 'Per-member normalized facts have settled' }, turnEnd: turnEndPartSummary, hydration: hydrationPart }, bindingRetention: bindings.diagnostics?.() || null, activeFormation: bindings.getActiveFormation?.(String(lead.id)) || null, ...capacity }
   }
 
   /** Steer by native name: a teammate of the caller's Lead (or the Lead itself) or the caller's own direct child. */
@@ -528,9 +526,10 @@ export function createTeamOps(ctx, { bindings, getCatalog, getTeamSettings = () 
     const found = rows.find(row => row.kind === 'child' && (row.path === text || String(row.id) === text || (String(row.parentId) === String(caller.id) && row.name === text)))
     if (found) return { sessionId: String(found.id), name: found.path || found.name || String(found.id), kind: String(found.parentId) === String(caller.id) ? 'child' : 'descendant', parentSessionId: String(found.parentId), mode: found.mode, live: !!liveAgent(found.id) }
     throw new Error('target "' + text + '" is not a teammate name, a descendant name/path in this tree, or a known descendant session id')
-  }  /** Lead-only raw activity window. Recorded fields only; no verdict or health classification. */
+  }  /** Tree-root raw activity window (Lead or Orchestrator root). Recorded fields only; no verdict or health classification. */
   async function activityWindow(caller, args = {}, signal) {
-    assertLeadAction(caller, 'read member or child activity')
+    // Reading one's own tree is orchestration work: the Lead and an Orchestrator root (Agent Teams off) may.
+    assertLeadAction(caller, 'read member or child activity', { allowed: TREE_ROOT_POSITIONS })
     const target = await resolveActivityTarget(caller, args.target, signal)
     const window = await activity.window(target.sessionId, { limit: args.limit, before: args.before, kinds: args.kinds, outcome: args.outcome, signal })
     const settings = normalizeTeamSettings(getTeamSettings())
@@ -543,9 +542,9 @@ export function createTeamOps(ctx, { bindings, getCatalog, getTeamSettings = () 
       ...(bindingDiagnostics.has(target.sessionId)?{teamDiagnostics:[bindingDiagnostics.get(target.sessionId).value]}:{}),
     }
   }
-  /** Lead-only cross-owner job kill: the recorded job/registered owner is the required evidence. */
+  /** Tree-root cross-owner job kill (Lead or Orchestrator root): the recorded job/registered owner is the required evidence. */
   async function killDescendantJob(caller, args = {}, signal) {
-    assertLeadAction(caller, 'kill a descendant-owned background job')
+    assertLeadAction(caller, 'kill a descendant-owned background job', { allowed: TREE_ROOT_POSITIONS })
     const jobId = typeof args.jobId === 'string' ? args.jobId.trim() : ''
     if (!jobId) throw new Error('jobId must be a non-empty string')
     const reason = typeof args.reason === 'string' && args.reason.trim() ? args.reason.trim() : undefined

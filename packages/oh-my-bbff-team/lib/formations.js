@@ -1,6 +1,6 @@
 // Formation definitions are configuration; active seating is per-Lead operational state.
 import { readFileSync, existsSync } from 'node:fs'
-import { classify } from './classify.js'
+import { assertPosition } from './classify.js'
 import { validateFormations } from './config-store.js'
 import { normalizeTeamSettings, teamCapacity } from './team-settings.js'
 import { preflightModel, bindingRouteFields, bindingSelection } from './models.js'
@@ -54,7 +54,8 @@ export function createFormationManager(ctx, { path = null, bindings, getCatalog,
     return nativeTree.membersOf(caller).filter(member => member.role !== 'lead' && member.kind !== 'oneshot' && member.mode !== 'external')
   }
   const assertLead = caller => {
-    if (!caller || classify(caller, get, settings()).position !== 'lead') throw new Error('only the Team Lead may manage formations')
+    if (!caller) throw new Error('only the Team Lead may manage formations; a calling agent is required')
+    assertPosition(caller, get, settings(), 'manage formations')
   }
   function list(caller) {
     const catalog = getCatalog(caller), currentSettings = settings(), capacity = teamCapacity(get, currentSettings)

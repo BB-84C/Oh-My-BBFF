@@ -1225,6 +1225,8 @@ window.__ModuleLoader__.load({
           title: tr('mode_' + mode),
           onClick: () => setMode(mode),
         }, tr('mode_' + mode)))),
+        // A refused or failed switch (e.g. native Agent Teams unavailable) is shown, never a silent no-op.
+        state.error ? h(ErrorText, { role: 'alert', 'data-team-mode-error': 'true' }, state.error) : null,
         h('div', { 'data-team-effective': data.effective || '' },
           tr('labelColon', { label: tr('effective') }),
           h(Badge, { tone: data.effective && data.effective !== 'off' ? 'info' : 'default', explain: { source: tr('explain.doctrineState'), settingPath: 'session.mode', default: 'auto' } }, data.effective ? (data.effective === 'off' ? tr('effective_off') : tr('mode_' + data.effective)) : '—')),

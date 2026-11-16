@@ -29,7 +29,8 @@ export function createRootContext(get, { getLimit = () => DEFAULT_TEAM_SETTINGS.
         const resolution=Object.freeze({...value}),asOf=new Date().toISOString()
         if(agent&&!disposed.has(agent)) { if(resolution.resolved)cache.set(agent,{resolution,asOf});else cache.delete(agent) }
         const result={resolution,source:'live',asOf},frame=polls.get(id)
-        if(frame?.agent===agent&&frame.family===family)frame.value=result
+        // No poll frame for this id (e.g. an unloaded session resolved directly): nothing to update.
+        if(frame&&frame.agent===agent&&frame.family===family)frame.value=result
         return result
       } catch(error) {
         if(agent)cache.delete(agent)
