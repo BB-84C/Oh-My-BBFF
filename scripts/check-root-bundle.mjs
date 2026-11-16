@@ -15,7 +15,7 @@ const meta = JSON.parse(read('packages/oh-my-bbff/package.json'))
 const FAMILY = ['oh-my-bbff-widgets', 'oh-my-bbff-team', 'oh-my-bbff-memory', 'oh-my-bbff-scope', 'oh-my-bbff-superpowers']
 
 assert.equal(manifest.name, 'oh-my-bbff', 'the root bundle keeps the family name')
-assert.equal(manifest.version, '1.0.0', 'the root bundle ships the same version as the npm bundle')
+assert.equal(manifest.version, meta.version, 'the root bundle ships the same version as the npm bundle')
 assert.equal(manifest.private, undefined, 'a private package cannot be installed from a git address')
 assert.equal(manifest.type, 'module')
 assert.equal(manifest.main, './index.js')
@@ -29,7 +29,8 @@ for (const file of ['index.js', 'cordis.patch.yml', 'icon.svg', 'README.md', 'LI
 }
 assert.deepEqual(Object.keys(manifest.dependencies ?? {}).sort(), [...FAMILY].sort(), 'the root depends on exactly the five family packages')
 for (const name of FAMILY) {
-  assert.equal(manifest.dependencies[name], '1.0.0', name + ' is pinned exactly')
+  const sibling = JSON.parse(read(`packages/${name}/package.json`))
+  assert.equal(manifest.dependencies[name], sibling.version, name + ' is pinned exactly to that package own version')
   assert.equal(meta.dependencies[name], manifest.dependencies[name], name + ' must match the npm bundle pin')
 }
 // A git install must not run a build: no lifecycle script may exist here.

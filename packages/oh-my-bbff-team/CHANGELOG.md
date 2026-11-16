@@ -1,13 +1,10 @@
 # Changelog — Oh-My-BBFF Team
 
-## 1.0.2
+## 1.0.1
 
 - The session-mode switch on the Team card now really switches. Team leader turns native Agent Teams on for the conversation and Orchestrator turns it off, so a conversation that started in one mode can move to the other without a restart. Auto and Off leave the native selection as it is (Off still turns the Team doctrine off). Before, the switch only stored a BBFF preference and the card honestly showed "Effective: Orchestrator".
 - The mode is stored only after the native switch succeeded. A missing Agent Teams service, an unloaded root conversation or a failed native call is reported as an error on the card and nothing changes.
 - Fixed resolving the root of a conversation that is not loaded (it failed with an internal error).
-
-## 1.0.1
-
 - An Orchestrator root (a root conversation with Agent Teams off) may now read the activity of its own subagents (`bbff_team_activity`) and cancel their background jobs (`bbff_team_job_kill`). A subagent and an unclassified or yielded session are still refused.
 - Every Team refusal now states how the conversation is classified (`lead`, `solo-root`, `child`, `unknown`, `foreign`), the reason, and what to do. For example, an Orchestrator root is told to turn on "Use Agent Teams" in the model menu. Hiring, assigning, compacting and formations share one wording.
 - When Team mode is off, `bbff_team_roster` returns `teamState` with the classified position, the reason and the remedy.

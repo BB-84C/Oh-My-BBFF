@@ -48,11 +48,15 @@ for (const script of ['prepack', 'check']) {
 const entry = read('index.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '').trim()
 assert.equal(entry, 'export {};', 'index.js must be an empty module (no runtime side effects)')
 
-// 3. dependencies pin exactly the five family packages to this release
+// 3. dependencies pin exactly the five family packages, each to that package's own version. The
+// bundle's version is the release marker, not a requirement that a patch release moves all five
+// packages: a release that ships one fix must still pin the untouched members exactly.
 const deps = Object.entries(manifest.dependencies ?? {})
 assert.deepEqual(deps.map(([name]) => name).sort(), [...FAMILY].sort(), 'dependencies must be exactly the five family packages')
 for (const [name, range] of deps) {
-  assert.equal(range, manifest.version, name + ' must be pinned exactly to the bundle release, like the official dsh bundles pin their packages')
+  const sibling = JSON.parse(read(join('..', name, 'package.json')))
+  assert.equal(sibling.name, name)
+  assert.equal(range, sibling.version, name + ' must be pinned exactly to that package own version, like the official dsh bundles pin their packages')
 }
 
 // 4. patch rows: one per family package, same id/name/inject as that package's own row
@@ -65,7 +69,7 @@ for (const row of patchRows) {
   assert.deepEqual(row.inject, own[0].inject, row.id + ': inject must match the package own row')
   const sibling = JSON.parse(read(join('..', row.id, 'package.json')))
   assert.equal(sibling.name, row.id)
-  assert.equal(sibling.version, manifest.version, row.id + ' must be released at the same version as the bundle')
+  assert.equal(sibling.version, manifest.dependencies[row.id], row.id + ' must be released at the version the bundle pins')
   assert.equal(sibling.dsh?.bundle?.patch, './cordis.patch.yml', row.id + ' must itself be a bundle')
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "oh-my-bbff",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "engines": {
     "dsh": ">=0.2.2-rc.2"
   },
@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "oh-my-bbff-widgets": "1.0.0",
-    "oh-my-bbff-team": "1.0.0",
+    "oh-my-bbff-team": "1.0.1",
     "oh-my-bbff-memory": "1.0.0",
     "oh-my-bbff-scope": "1.0.0",
     "oh-my-bbff-superpowers": "1.0.0"
