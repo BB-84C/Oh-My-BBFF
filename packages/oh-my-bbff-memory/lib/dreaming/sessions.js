@@ -1,6 +1,7 @@
 /** Lossless bounded human-input manifests and UTF-8 multipart pages. Native decoding is SDK-owned. */
 import { randomUUID, createHash } from 'node:crypto'
 import { sessionEventFacts, sessionHeaderFacts } from '../dsh-adapter.js'
+import { sessionReadSkipFacts, sessionReadSkipReason } from '../session-budget.js'
 import { DEFAULT_DATA } from '../defaults.js'
 import { truncateUtf8 } from '../store.js'
 import { createSessionReadCache } from '../session-reads.js'
@@ -16,8 +17,24 @@ function userFacts(event) {
   return { ...facts, human: facts.complete && facts.value?.kind === 'user-message' && facts.value.isHuman === true && facts.value.text.length > 0 }
 }
 export function userTextOf(event) { const facts = userFacts(event);return facts.human ? facts.value.text : null }
-export function createSessionSource({ getPersistence, getQuery, getAgents, getRoot, getSettings, readCache, logger }) {
-  const bridge = { get: name => name === 'sessionPersistence' ? getPersistence?.() : name === 'sessionQuery' ? getQuery?.() : name === 'agents' ? getAgents?.() : undefined }, reader = readCache || createSessionReadCache(bridge, { getSettings })
+export function createSessionSource({ getPersistence, getQuery, getAgents, getRoot, getSettings, readCache, logger, sessionBudget }) {
+  const bridge = { get: name => name === 'sessionPersistence' ? getPersistence?.() : name === 'sessionQuery' ? getQuery?.() : name === 'agents' ? getAgents?.() : undefined }, reader = readCache || createSessionReadCache(bridge, { getSettings, sessionBudget })
+  // One decoded log per review: pages of the same review reuse a single snapshot, and the decode
+  // cost is reported with the page so a review can see what it paid.
+  const pageSnapshots = new Map(), reviewCost = new Map()
+  async function pageFact(id, index, reviewId = '') {
+    const key = String(id) + '|' + String(reviewId), current = pageSnapshots.get(key)
+    let row = current
+    if (!row) {
+      const startedAt = Date.now(), verdict = await sessionBudget?.check?.(id, {}), model = await reader.read(id, { from: 0, purpose: 'page', allowSkipped: true })
+      row = { model, ms: Date.now() - startedAt, skipped: !!verdict?.skipped }
+      pageSnapshots.set(key, row)
+      const cost = reviewCost.get(String(reviewId)) || { decodes: 0, ms: 0 };cost.decodes++;cost.ms += row.ms;reviewCost.set(String(reviewId), cost)
+      while (pageSnapshots.size > 8) pageSnapshots.delete(pageSnapshots.keys().next().value)
+      while (reviewCost.size > 8) reviewCost.delete(reviewCost.keys().next().value)
+    }
+    return row.model.human.get(index) || row.model.invalid.get(index) || { complete: true, human: false }
+  }
   return {
     available: () => !!(getPersistence?.()?.open || getQuery?.()?.observeSession),
     async list() {
@@ -32,7 +49,11 @@ export function createSessionSource({ getPersistence, getQuery, getAgents, getRo
     },
     root: id => getRoot?.(id),
     readFacts: (id, options) => reader.read(id, options),
-    async factAt(id, index) { const model = await reader.read(id, { from: index });return model.human.get(index) || model.invalid.get(index) || { complete: true, human: false } },
+    async factAt(id, index, reviewId) { return pageFact(id, index, reviewId) },
+    pageCost: (reviewId = '') => ({ ...(reviewCost.get(String(reviewId)) || { decodes: 0, ms: 0 }) }),
+    /** Budget verdict for one session id; null when no budget is bound (documented fallback). */
+    async sessionCheck(id) { return sessionBudget?.check ? sessionBudget.check(id, {}) : null },
+    budgetDescribe: () => sessionBudget?.describe?.() || null,
     reader,
   }
 }
@@ -53,7 +74,7 @@ function checkedLimits(input) {
 }
 export async function computeDelta({ source, checkpoint, now, limits, exclude, includeSubagents = DEFAULT_DATA.fields.includeSubagentSessions.default, logger }) {
   const effective = checkedLimits(limits), previous = checkpoint && typeof checkpoint === 'object' ? checkpoint : { at: null, sessions: {} }, previousSessions = previous.sessions || {}, nextSessions = Object.assign(Object.create(null), previousSessions), entries = []
-  const stats = { sessionsListed: 0, sessionsConsidered: 0, sessionsRead: 0, sessionsChanged: 0, sessionsSkippedUnchanged: 0, sessionsFailed: 0, messages: 0, bytes: 0, truncated: false, skips: [], blocked: [], diagnostics: [], unscannedSessions: 0 }
+  const stats = { sessionsListed: 0, sessionsConsidered: 0, sessionsRead: 0, sessionsChanged: 0, sessionsSkippedUnchanged: 0, sessionsSkipped: 0, skippedSessions: [], sessionsFailed: 0, messages: 0, bytes: 0, truncated: false, skips: [], blocked: [], diagnostics: [], unscannedSessions: 0 }
   let rows
   try { rows = await source.list() }
   catch (error) { stats.failedReason = 'Session listing failed: ' + String(error?.message || error);return finish() }
@@ -66,6 +87,12 @@ export async function computeDelta({ source, checkpoint, now, limits, exclude, i
     const completeBefore = prior?.complete === true || (prior?.complete !== false && Number.isSafeInteger(row.eventCount) && priorCursor >= row.eventCount && !prior?.byteOffset)
     if (prior && completeBefore && row.revision !== null && prior.revision === row.revision) { stats.sessionsSkippedUnchanged++;continue }
     if (stats.sessionsRead >= effective.maxSessions || stats.bytes >= effective.maxBytesTotal) { stats.truncated = true;stats.unscannedSessions = candidates.length - rowIndex;break }
+    // Owner session-read budget: never open a log that is too large AND too old. A skipped session
+    // is a first-class diagnostic (id/size/age) and its checkpoint is left untouched — never a
+    // fabricated empty fold.
+    let verdict = null
+    try { verdict = await source.sessionCheck?.(row.id) } catch (error) { stats.diagnostics.push({ reason: String(error?.message || error), sessionId: row.id }) }
+    if (verdict?.skipped) { stats.sessionsSkipped++;stats.skippedSessions.push(sessionReadSkipFacts(verdict));continue }
     let snapshot
     try { snapshot = source.readFacts ? await source.readFacts(row.id, { from: priorCursor, minimumCursor: row.eventCount, expectedRevision: row.revision === null ? undefined : row.revision }) : await source.read(row.id);stats.sessionsRead++ }
     catch (error) { stats.sessionsFailed++;stats.skips.push({ sessionId: row.id, reason: String(error?.message || error) });continue }
@@ -100,7 +127,11 @@ export async function computeDelta({ source, checkpoint, now, limits, exclude, i
     entries.push({ sessionId: row.id, cwd: source.root ? root?.resolved ? root.cwd : null : row.cwd || null, createdAt: row.createdAt || null, eventCount: totalEvents, fromIndex, fromOffset, toIndex: cursor, toOffset: byteOffset, messageCount: messages.length, bytes: sessionBytes, firstTime: messages[0].time, lastTime: messages.at(-1).time, partial: !complete, messages })
   }
   return finish()
-  function finish() { return { version: DELTA_VERSION, deltaId: 'delta-' + randomUUID(), createdAt: now, checkpointAt: Number.isFinite(previous.at) ? previous.at : null, checkpointBefore: previous, entries, nextCheckpoint: { at: stats.failedReason ? previous.at : now, sessions: nextSessions }, stats } }
+  function finish() {
+    const budget = source.budgetDescribe?.() || null
+    stats.coverage = stats.sessionsSkipped || stats.sessionsFailed || stats.truncated ? 'partial' : 'complete'
+    if (budget) { stats.sessionReadLimits = budget.limits;stats.sessionReadLimitsSource = budget.source;if (budget.source === 'contract-default') stats.diagnostics.push({ reason: msg('diag.sessionReadLimitsFallback') }) }
+    return { version: DELTA_VERSION, deltaId: 'delta-' + randomUUID(), createdAt: now, checkpointAt: Number.isFinite(previous.at) ? previous.at : null, checkpointBefore: previous, entries, nextCheckpoint: { at: stats.failedReason ? previous.at : now, sessions: nextSessions }, stats } }
 }
 export function deltaManifest(delta, { maxEntries = defaultLimit('deltaManifestPageSize'), cursor = 0 } = {}) {
   const all = delta.entries || [], start = Math.max(0, Math.min(Number.isSafeInteger(cursor) ? cursor : 0, all.length)), count = Number.isSafeInteger(maxEntries) && maxEntries > 0 ? maxEntries : defaultLimit('deltaManifestPageSize'), end = Math.min(all.length, start + count)
@@ -118,7 +149,7 @@ export async function pageDelta({ source, delta, sessionId, cursor = 0, byteOffs
   const start = nextCursor, fromByteOffset = nextByteOffset, snapshot = source.factAt ? null : await source.read(entry.sessionId), parts = []
   let text = '', blocked = null
   while (nextCursor < entry.messages.length) {
-    const meta = entry.messages[nextCursor], fact = source.factAt ? await source.factAt(entry.sessionId, meta.index) : null, raw = fact ? fact.human ? fact.value.text : null : userTextOf(snapshot.events[meta.index]), sourceDigest = fact?.sourceDigest || (raw === null ? null : digest(raw))
+    const meta = entry.messages[nextCursor], fact = source.factAt ? await source.factAt(entry.sessionId, meta.index, delta?.deltaId) : null, raw = fact ? fact.human ? fact.value.text : null : userTextOf(snapshot.events[meta.index]), sourceDigest = fact?.sourceDigest || (raw === null ? null : digest(raw))
     if (raw === null || (meta.sourceDigest && meta.sourceDigest !== sourceDigest)) throw new Error('Delta source changed or is unavailable; it must not be silently consumed.')
     const full = Buffer.from(raw, 'utf8'), from = meta.startOffset || 0, to = meta.endOffset ?? full.length, body = full.subarray(from, to).toString('utf8'), bodyBytes = byteLength(body)
     if (nextByteOffset > bodyBytes) throw new Error('Page byte offset exceeds its recorded source fragment.')
@@ -134,5 +165,5 @@ export async function pageDelta({ source, delta, sessionId, cursor = 0, byteOffs
     if (nextByteOffset >= bodyBytes) { nextCursor++;nextByteOffset = 0 } else break
   }
   const done = nextCursor >= entry.messages.length
-  return { sessionId: entry.sessionId, fromCursor: start, fromByteOffset, nextCursor: done ? null : nextCursor, nextByteOffset: done ? 0 : nextByteOffset, done, messageCount: parts.length, totalMessages: entry.messages.length, bytes: byteLength(text), entries: entries.length, text, parts, ...(blocked ? { blocked } : {}) }
+  return { sessionId: entry.sessionId, fromCursor: start, fromByteOffset, nextCursor: done ? null : nextCursor, nextByteOffset: done ? 0 : nextByteOffset, done, messageCount: parts.length, totalMessages: entry.messages.length, bytes: byteLength(text), entries: entries.length, ...(source.pageCost ? { decode: { ...source.pageCost(delta?.deltaId), reviewId: delta?.deltaId || null } } : {}), text, parts, ...(blocked ? { blocked } : {}) }
 }

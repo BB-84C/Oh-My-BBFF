@@ -1,6 +1,6 @@
 {
   "name": "oh-my-bbff-sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "sideEffects": false,
   "description": "Open contract SDK for Oh-My-BBFF modules: family registry (host), UI card/settings registration and locale dictionaries (client) for the Oh-My-BBFF Widgets root.",

@@ -1,5 +1,17 @@
 # Changelog — Oh-My-BBFF Widgets
 
+## 1.0.2 — packaging fix (1.0.1 could not be imported)
+
+- The 1.0.1 tarball shipped four modules as tar **hardlink** entries (the source tree carried hardlinks into a cleanroom install), and installers that do not resolve tar links materialized them as 0-byte files. The import then failed with `does not provide an export named ...`. Every shipped file was materialized as an independent inode before packing and the archive now contains no link entries of any kind.
+- Release verification is stricter: a pack fails if any member is a hardlink or symlink, if the member set differs from the declared `files` allowlist, if any member content differs from the source, if a named import does not resolve inside the shipped bytes, or if the packed entry point cannot be imported from a scratch install.
+
+## 1.0.1 — session-read budget and two community fixes
+
+- **Session-read budget (owner rule):** a session log larger than 30 MB that has not been written for 7 days is never opened. DSH decompresses a whole compressed log for a logical read, so cold historical logs are skipped from one `stat` and reported as `session-read-skipped` (session id, size, age) instead of decoded. Both thresholds are settings (BBFF → advanced → limits) and default to 30 MB / 7 days. The session this agent runs in and sessions an explicit user action targets are never skipped.
+- **Catalog ledger no longer blocks the host thread:** `observe()` decides capacity admission from exact per-row byte deltas instead of rebuilding, unioning, sorting and serializing the whole document per observation (6,000 observations went from ~13.6 s to ~84 ms here; the event loop stays free). Persisted documents are byte-identical to the previous algorithm, proven by a differential test against the old implementation.
+- **MCP completeness note:** the note is host text and is now resolved before it reaches the React tree (it used to be passed as a reference object, which crashed the sidebar tab with React error #31).
+- **Member settings pages:** 高级设置 opens again for Team/Scope/Memory. The per-module kit rendered the layout renderer instead of the stateful component, so `open`/`onOpenChange` were undefined and the summary click threw.
+
 ## 1.0.0 — first public release
 
 - First public release of Oh-My-BBFF Widgets. The family aligns every package at version 1.0.0.

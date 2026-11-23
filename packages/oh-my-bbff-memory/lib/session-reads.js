@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto'
 import { sessionEventFacts, sessionHeaderFacts } from './dsh-adapter.js'
 import { DEFAULT_DATA } from './defaults.js'
 import { createSessionCheckpointStore } from './session-checkpoints.js'
+import { SESSION_READ_SKIP_CODE } from './bbff-contract.js'
+import { sessionReadSkipFacts, sessionReadSkipReason } from './session-budget.js'
 const bytes = text => Buffer.byteLength(text, 'utf8'), sha = text => createHash('sha256').update(text).digest('hex'), turns = DEFAULT_DATA.fields.routeWindowTurns.max
 const fresh = (start, poll = false) => ({ start, cursor: start, human: new Map(), invalid: new Map(), owned: new Map(), ownedList: [], ownedComplete: true, recent: [], polledOnly: poll, bytes: 0, at: -Infinity, savedCursor: -1, lastSavedAt: -Infinity })
 const settingsOf = getSettings => getSettings?.() || Object.fromEntries(Object.entries(DEFAULT_DATA.fields).map(([key, value]) => [key, value.default]))
@@ -41,7 +43,7 @@ function fold(state, events, metrics) {
   }
   return state
 }
-export function createSessionReadCache(ctx, { getSettings, now = Date.now, checkpointDirectory } = {}) {
+export function createSessionReadCache(ctx, { getSettings, now = Date.now, checkpointDirectory, sessionBudget } = {}) {
   let disposed = false
   const stop = () => { if (disposed) throw new Error('Session read cache is disposed.') }
   const rows = new Map(), inflight = new Map(), pending = new Map(), checkpoints = createSessionCheckpointStore({ directory: checkpointDirectory, getSettings: () => settingsOf(getSettings), now }), metrics = { observations: 0, opens: 0, reads: 0, foldedEvents: 0, hits: 0, evictions: 0, mapCopies: 0, checkpointLoads: 0, checkpointWrites: 0, checkpointErrors: 0, restoredEventLookups: 0 }, get = name => { try { return ctx.get(name) } catch { return undefined } }, keyOf = (id, purpose) => JSON.stringify([id,purpose])
@@ -128,8 +130,12 @@ export function createSessionReadCache(ctx, { getSettings, now = Date.now, check
       fold(base,events,metrics);base.live=undefined;base.identity=identity;base.revision=snapshot?.revision;base.at=now();return store(id,purpose,base)
     }finally{await handle.close()}
   }
-  async function read(id,{from=0,signal,minimumCursor,expectedRevision,purpose='delta'}={}){
+  async function read(id,{from=0,signal,minimumCursor,expectedRevision,purpose='delta',allowSkipped=false}={}){
     signal?.throwIfAborted?.();stop();if(!Number.isSafeInteger(from)||from<0)throw new Error('Session cursor must be a nonnegative integer.')
+    // Session-read budget: a cold log that is too large AND too old is never opened. A targeted,
+    // explicit read (the review's own page requests) may opt out with allowSkipped.
+    const budget = sessionBudget?.check ? await sessionBudget.check(id, { exempt: allowSkipped === true }) : null
+    if (budget?.skipped) { const skipped = new Error(sessionReadSkipReason(budget));skipped.code = SESSION_READ_SKIP_CODE;skipped.sessionRead = sessionReadSkipFacts(budget);throw skipped }
     const key=keyOf(id,purpose);if(inflight.has(key)){await inflight.get(key);return read(id,{from,signal,minimumCursor,expectedRevision,purpose})}
     const job=readUncached(id,from,signal,minimumCursor,expectedRevision,purpose).finally(()=>{inflight.delete(key);pending.delete(key)});inflight.set(key,job);return job
   }

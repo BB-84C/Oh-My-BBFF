@@ -2,9 +2,18 @@
  * The same committed-event/watermark strategy as the Widgets incremental view is used,
  * but raw activity has its own bounded RAM tail instead of Widgets' goals/todos state.
  * Native JSONL/zstd may decode internally on a memo miss; consumers never replay/fold the full log.
+ *
+ * Session-read budget division (family contract, owner rule > 30 MB AND > 7 days):
+ * - an explicit request about a NAMED member (`window`, `lastTurnEnd`, `findRegisteredJob`)
+ *   IS that member's cold read and is exempt by design: the policy never hides data the
+ *   user asked for by name. Residual risk: a scripted sweep over many named members would
+ *   still decode each one; that is a tool/policy question, not this reader's.
+ * - the unattended turn-summary warm scan (`warmTurnSummary`/`scanTurnEnd`) is background
+ *   work, so it honours the budget and reports `status:'skipped'` instead of decoding.
  */
 import { activityEventFacts } from './dsh-adapter.js'
 import { DEFAULT_TEAM_SETTINGS, normalizeTeamSettings } from './team-settings.js'
+import { createTeamSessionBudget, sessionReadSkipReason } from './session-budget.js'
 export const ACTIVITY_READ_POLICY = Object.freeze({ retainedEvents:160, retainedSessions:64, countProbeSteps:48, maxEventOffset:2**24 })
 /** Background turn-summary scan: small batches separated by a macrotask yield, so one
  * member's native memo-miss read is the only long task and never lands on a request path. */
@@ -37,7 +46,7 @@ export function turnSummaryOf(entry) {
   return{time:entry.time??null,turn:fact.turn,reasonKind:fact.reason.kind,...(failure?{failureMessage:failure.message,failureMessageLength:failure.messageLength??failure.message.length,failureMessageTruncated:failure.messageTruncated===true}: {})}
 }
 const merge=(left,right)=>[...new Map([...left,...right].map(row=>[row.seq,row])).values()].sort((a,b)=>a.seq-b.seq)
-export function createActivity({get,getSettings=()=>DEFAULT_TEAM_SETTINGS,logger=null,now=Date.now,ledger=null,statOf=null}={}) {
+export function createActivity({get,getSettings=()=>DEFAULT_TEAM_SETTINGS,logger=null,now=Date.now,ledger=null,statOf=null,sessionBudget=createTeamSessionBudget(getSettings,{now})}={}) {
   const records=new Map(),pending=new Map(),warmers=new Map()
   const config=()=>normalizeTeamSettings(getSettings())
   const session=id=>{try{return get('agents')?.get?.(id)?.session||get('sessions')?.get?.(id)}catch{return undefined}}
@@ -101,6 +110,9 @@ export function createActivity({get,getSettings=()=>DEFAULT_TEAM_SETTINGS,logger
     if(r.identity!==null&&r.identity!==(p.identity??p)){r.tail=[];r.count=null;r.countKey=null}
     r.identity=p.identity??p
     const key=keyOf(snapshot)
+    // Exempt by design (see the module header): this read answers an explicit request about a
+    // named member, so the session-read budget does not hide it. The unattended warm scan is
+    // gated in scanTurnEnd; nothing on this path runs on its own.
     // A cold log is opened (decoded) at most once here, for both the count and the slice.
     let handle=null
     try {
@@ -220,6 +232,9 @@ export function createActivity({get,getSettings=()=>DEFAULT_TEAM_SETTINGS,logger
     r.identity=identity
     const key=keyOfSnapshot(snapshot)
     if(snapshot.eventCount===0)return{value:null,status:'ready',reason:'No committed turn-end fact',scanned:0,key,persistence:p}
+    // Background warm scan (never a request path): a large, long-untouched log is not decoded.
+    const budget=await sessionBudget.check(id)
+    if(budget.skipped)return{value:null,status:'skipped',reason:sessionReadSkipReason(budget),code:budget.code,sizeBytes:budget.stats?.sizeBytes??null,ageMs:budget.ageMs,scanned:0,key,persistence:p}
     // One open (one decode of a cold log) serves both the count and the backward scan.
     const handle=await p.open(id,'read',{signal})
     let scanned=0,lower=0

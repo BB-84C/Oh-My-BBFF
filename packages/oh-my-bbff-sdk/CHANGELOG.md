@@ -1,5 +1,10 @@
 # Changelog — Oh-My-BBFF SDK
 
+## 1.0.1 — session-read budget contract
+
+- The family contract gains the session-read budget policy: `SESSION_READ_SKIP_CODE`, `SESSION_READ_SKIP_REASON_KEY`, `SESSION_READ_LIMIT_DEFAULTS` (30 MB / 7 days), `sessionReadLimits(settings)`, `skippableSessionLog(stats, now, limits)`, `sessionReadSkipParams(verdict)`, `statSessionLog(sessionsRoot, sessionId)` and `createSessionReadBudget(...)`.
+- First-party bundles vendor these bytes unchanged; the policy is applied per package with its own settings resolver.
+
 ## 1.0.0 — first public release
 
 - First public release of the Oh-My-BBFF SDK. Family-wide version reset to 1.0.0. The contract surface is unchanged from 0.1.16.

@@ -53,7 +53,10 @@
     "searchMinQueryChars": 2,
     "searchLineMaxChars": 240,
     "sessionCheckpointOwnedFrames": 128,
-    "retryScope": "failed preparation/delivery only; never replay a model turn or failed commit"
+    "retryScope": "failed preparation/delivery only; never replay a model turn or failed commit",
+    "wakePromptTokenAllowance": 40000,
+    "rotationStaleMs": 900000,
+    "rotationEscalateAfter": 3
   },
   "storage": {
     "homeDefaultDirectory": ".dsh",
@@ -158,6 +161,19 @@
       "min": 0.016666666666666666,
       "max": 8760,
       "unit": "hours",
+      "group": "dreaming"
+    },
+    "rotationEnabled": {
+      "type": "boolean",
+      "default": true,
+      "group": "dreaming"
+    },
+    "rotationContextRatio": {
+      "type": "number",
+      "default": 0.4,
+      "min": 0.05,
+      "max": 0.9,
+      "unit": "percent",
       "group": "dreaming"
     },
     "retryAfterFailure": {

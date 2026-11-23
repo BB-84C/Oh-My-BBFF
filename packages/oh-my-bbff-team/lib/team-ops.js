@@ -114,7 +114,7 @@ export function createTeamOps(ctx, { bindings, getCatalog, getTeamSettings = () 
     const snapshot=await statOf(id,signal)
     return snapshot?.header
   }})
-  const reportTimeBackfill = createReportTimeBackfill({ reports, sessionRoot, logger: ctx.logger })
+  const reportTimeBackfill = createReportTimeBackfill({ reports, sessionRoot, logger: ctx.logger, getSettings: getTeamSettings })
   const reportValue = (row, stale) => {
     if(!row)return {lastReport:null,reportExcerpt:null,reportStatus:'none',reportPlaceholder:REPORT_PLACEHOLDER.ui,reportAt:null,reportStale:false}
     const limit=normalizeTeamSettings(getTeamSettings()).reportExcerptChars,report={...row.report,text:row.report.text.slice(0,limit),limit,truncated:row.report.truncated||row.report.totalChars>limit}

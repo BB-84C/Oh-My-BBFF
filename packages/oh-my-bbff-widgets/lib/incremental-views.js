@@ -1,7 +1,10 @@
 import { wmsg as msg } from './locale-keys.js'
+import { SESSION_READ_SKIP_CODE } from './bbff-contract.js'
+import { createWidgetsSessionBudget, sessionReadSkipReason } from './session-budget.js'
 /** Incremental Root-owned session views. Live: committed events only. Cold:
  * cheap stat, one suffix fold per revision, with >=historyReuseInterval coalescing.
  * Native JSONL may fully decode physically; that limitation is never hidden.
+ * A cold log the session-read budget excludes is never opened (see session-budget.js).
  */
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -12,7 +15,7 @@ const canonical=value=>JSON.stringify(value,(_key,item)=>item&&typeof item==='ob
 const digest=value=>createHash('sha256').update(canonical(value)).digest('hex')
 const problem=(code,reason)=>({key:code,level:'warning',section:'session-view',code,reason})
 export const NATIVE_COLD_LIMITATION=Object.freeze({code:'native-cold-full-decode',reason:msg('diag.views.cold-limitation')})
-export function createIncrementalViews(ctx,{dir,getSettings=()=>ROOT_SETTINGS_DEFAULTS,now=Date.now,readRuntime,onChange=()=>{},readConcurrency=2}={}){
+export function createIncrementalViews(ctx,{dir,getSettings=()=>ROOT_SETTINGS_DEFAULTS,now=Date.now,readRuntime,onChange=()=>{},readConcurrency=2,sessionBudget=createWidgetsSessionBudget(getSettings,{now})}={}){
  if(!dir||!path.isAbsolute(dir)||path.resolve(dir)===path.parse(dir).root)throw new Error('View directory must be owned and absolute')
  const root=path.resolve(dir),records=new Map(),epochs=new Map(),pinned=new Set(),disposers=[],readQueue=[];let disposed=false,closing=false,runningReads=0,timer
  // One lifecycle signal per generation: every in-flight stat/open/read is
@@ -21,13 +24,13 @@ export function createIncrementalViews(ctx,{dir,getSettings=()=>ROOT_SETTINGS_DE
  const alive=()=>!disposed&&!closing
  const get=name=>{try{return ctx.get(name)}catch{return undefined}},session=id=>get('agents')?.get?.(id)?.session||get('sessions')?.get?.(id),settings=()=>({...ROOT_SETTINGS_DEFAULTS,...getSettings()}),epoch=p=>{const id=p?.identity??p;if(!epochs.has(id))epochs.set(id,randomUUID());return epochs.get(id)}
  function trim(exempt){const limit=settings().stateRouteMaxEntries;for(const [id,r]of records){if(records.size<=limit)break;if(id===exempt||pinned.has(id)||session(id)||!r.initialized||r.sync||r.write||r.dirtyCheckpoint||r.buffer.size)continue;if(r.wakeup)clearTimeout(r.wakeup);r.closed=true;records.delete(id)}}
- const counts={stats:0,readOpens:0,readEvents:0,foldedEvents:0,liveEvents:0,checkpointLoads:0,checkpointWrites:0,rebuilds:0}
+ const counts={stats:0,readOpens:0,readEvents:0,foldedEvents:0,liveEvents:0,checkpointLoads:0,checkpointWrites:0,rebuilds:0,skipped:0}
  const filename=id=>path.join(root,digest(id)+'.json')
  const notify=r=>{try{onChange(r.id)}catch{}}
  function record(id){
   if(typeof id!=='string'||!id)throw new Error('Invalid session identity')
   let r=records.get(id);if(r)return r
-  r={id,state:emptySessionView(),offset:0,header:null,headerHash:null,inheritedEventCount:0,anchor:null,revision:null,identity:undefined,ready:false,initialized:false,validate:false,buffer:new Map(),diagnostics:new Map(),lastReadAt:null,lastAttemptRevision:null,sync:null,load:null,write:null,writeScheduled:null,dirtyCheckpoint:false,wakeup:null,viewRevision:0,runtime:null,closed:false};records.set(id,r);trim(id)
+  r={id,state:emptySessionView(),offset:0,header:null,headerHash:null,inheritedEventCount:0,anchor:null,revision:null,identity:undefined,ready:false,initialized:false,validate:false,buffer:new Map(),diagnostics:new Map(),lastReadAt:null,lastAttemptRevision:null,sync:null,load:null,write:null,writeScheduled:null,dirtyCheckpoint:false,wakeup:null,viewRevision:0,runtime:null,closed:false,userRequested:false,skipped:null};records.set(id,r);trim(id)
   return r
  }
  const issue=(r,code,reason)=>{r.diagnostics.set(code,problem(code,reason));notify(r)}
@@ -84,7 +87,7 @@ export function createIncrementalViews(ctx,{dir,getSettings=()=>ROOT_SETTINGS_DE
  async function synchronize(r,p,snapshot){
   if(r.sync)return r.sync
   const cold=!session(r.id),reuse=settings().historyReuseIntervalMs,elapsed=r.lastReadAt===null?Infinity:now()-r.lastReadAt
-  if(cold&&elapsed<reuse){
+  if(cold&&elapsed<reuse&&r.userRequested!==true&&!r.skipped){
    if(!r.wakeup){r.wakeup=setTimeout(()=>{r.wakeup=null;void refresh(r.id).catch(error=>issue(r,'source-read',String(error?.message||error)))},Math.max(0,reuse-elapsed));r.wakeup.unref?.()}
    return
   }
@@ -94,6 +97,11 @@ export function createIncrementalViews(ctx,{dir,getSettings=()=>ROOT_SETTINGS_DE
    // Re-stat at the coalesced read moment: do not decode an obsolete queued revision.
    const latest=await p.stat(r.id,{signal:lifecycle.signal});counts.stats++;if(!latest||!alive())return
    if(!r.validate&&r.ready&&r.identity===(p.identity??p)&&r.revision===latest.revision)return
+   // Owner read budget: a large, long-untouched log is never opened, so the host never
+   // decompresses it. The skip is recorded with its session id, size and age.
+   const budget=await sessionBudget.check(r.id,{exempt:r.userRequested===true})
+   if(budget.skipped){r.lastAttemptRevision=latest.revision;r.revision=latest.revision;r.identity=p.identity??p;r.skipped={code:budget.code||SESSION_READ_SKIP_CODE,sizeBytes:budget.stats?.sizeBytes??null,ageMs:budget.ageMs,limits:budget.limits,at:now()};counts.skipped++;issue(r,budget.code||SESSION_READ_SKIP_CODE,sessionReadSkipReason(budget));return}
+   if(r.skipped){r.skipped=null;r.diagnostics.delete(SESSION_READ_SKIP_CODE)}
    r.lastReadAt=now();r.lastAttemptRevision=latest.revision;r.identity=p.identity??p
    const started=performance.now();let handle
    try{
@@ -131,7 +139,7 @@ export function createIncrementalViews(ctx,{dir,getSettings=()=>ROOT_SETTINGS_DE
   return snapshot(id)
  }
  function snapshot(id){const r=record(id);return {sessionId:id,ready:r.ready,revision:r.viewRevision,offset:r.offset,header:r.header,data:sessionViewData(r.state),runtime:r.runtime,loading:!!r.sync||!r.ready,diagnostics:{entries:[...r.diagnostics.values()],nativeBackendLimitation:NATIVE_COLD_LIMITATION,migration:r.migration?{...r.migration}:null,lastReadMs:r.lastReadMs??null,lastStatMs:r.lastStatMs??null,sourceRevision:r.revision,checkpointPending:r.dirtyCheckpoint||!!r.write}}}
- function request(id,{pin=true}={}){if(pin){pinned.delete(id);pinned.add(id);while(pinned.size>settings().stateMaxSessions)pinned.delete(pinned.values().next().value)}const r=record(id);if(!r.initialized)void refresh(id).catch(error=>issue(r,'source-read',String(error?.message||error)));return snapshot(id)}
+ function request(id,{pin=true}={}){if(pin){pinned.delete(id);pinned.add(id);while(pinned.size>settings().stateMaxSessions)pinned.delete(pinned.values().next().value)}const r=record(id);if(pin)r.userRequested=true;if(!r.initialized)void refresh(id).catch(error=>issue(r,'source-read',String(error?.message||error)));return snapshot(id)}
  async function maintain(){if(!alive())return;await Promise.all([...records.keys()].map(id=>refresh(id).catch(()=>{})))}
  for(const [name,handler]of [['session/event',ingest],['goal/changed',({agent})=>{if(agent&&records.has(agent.id)){const r=records.get(agent.id);updateRuntime(r);notify(r)}}],['agent/status',({agent})=>{if(agent&&records.has(agent.id)){const r=records.get(agent.id);updateRuntime(r);notify(r)}}]]){const dispose=ctx.on?.(name,handler);if(typeof dispose==='function')disposers.push(dispose)}
  return Object.freeze({request,track:id=>request(id,{pin:false}),snapshot,refresh,ingest,maintain,counts,

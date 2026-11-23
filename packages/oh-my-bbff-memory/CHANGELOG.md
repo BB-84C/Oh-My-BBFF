@@ -1,5 +1,10 @@
 # Changelog — Oh-My-BBFF Memory
 
+## 1.0.4 — Dreaming rotation and the family session-read budget
+
+- **Dreaming Resident rotation no longer deadlocks.** When the resident approaches the context window limit it rotates onto a fresh session, leaves a short handoff note, keeps the retired session on disk and re-delivers the wake that was deferred for the rotation. The resident can also rotate on demand from the Dreaming card.
+- **Session-read budget.** A session log larger than 30 MB that has not been written for 7 days is skipped instead of decompressed when the resident reviews sessions, so a long history no longer makes the machine work through tens of megabytes at every wake. Both thresholds are settings in the BBFF settings page.
+
 ## 1.0.0 — first public release
 
 - First public release of Oh-My-BBFF Memory. Family-wide version reset to 1.0.0. Includes the 0.9.2 semantic preset-budget drift comparison and the vendored js-yaml parser described below.

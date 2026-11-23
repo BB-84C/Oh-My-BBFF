@@ -12,14 +12,14 @@ import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync, rmSync } from 'node:fs'
 import { dirname } from 'node:path'
 
-export const LEDGER_POLICY = Object.freeze({ schemaVersion: 1, applicationId: 0x42424654, flushMs: 250, busyTimeoutMs: 50, minRing: 50, maxRing: 500 })
+export const LEDGER_POLICY = Object.freeze({ schemaVersion: 2, applicationId: 0x42424654, flushMs: 250, busyTimeoutMs: 50, minRing: 50, maxRing: 500 })
 
 // camelCase field -> [column, json]
 const FIELDS = Object.freeze({
   rootId: ['root_id', false], parentId: ['parent_id', false], name: ['name', false], label: ['label', false], mode: ['mode', false], createdAt: ['created_at', false],
   status: ['status', false], statusAt: ['status_at', false], runningSince: ['running_since', false], lastEventAt: ['last_event_at', false], lastSeq: ['last_seq', false],
   turnStartedAt: ['turn_started_at', false], turnEndedAt: ['turn_ended_at', false], lastTurn: ['last_turn', true], route: ['route', true],
-  reportText: ['report_text', false], reportAt: ['report_at', false], context: ['context', true], error: ['error', true], revision: ['revision', false], syncedAt: ['synced_at', false], syncError: ['sync_error', false],
+  reportText: ['report_text', false], reportAt: ['report_at', false], context: ['context', true], error: ['error', true], revision: ['revision', false], syncedAt: ['synced_at', false], syncError: ['sync_error', false], skipped: ['skipped', true],
 })
 const SCHEMA = `
 CREATE TABLE agents (id TEXT PRIMARY KEY, ${Object.values(FIELDS).map(([column]) => column + (/(_at|_since|_seq)$/.test(column) ? ' INTEGER' : ' TEXT')).join(', ')}) WITHOUT ROWID;

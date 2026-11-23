@@ -5,6 +5,7 @@
   },
   "ui": {
     "diag.mcp-tool-name.server-attribution-uses-an-unobserved-rule-namespace": "服务器归属使用尚未观察到的规则命名空间提示。",
+    "diag.sessionReadSkipped": "会话日志 {sizeMb} MB、已 {ageDays} 天未更新，超出读取预算（{maxSizeMb} MB / {maxAgeDays} 天），本次未解码。会话：{sessionId}",
     "diag.mcp-tool-name.malformed-mcp-public-tool-name": "MCP 公共工具名格式无法识别。",
     "diag.mcp-tool-name.server-attribution-is-an-uncorroborated-naming-fallb": "服务器归属仅来自尚未证实的命名约定推断。",
     "diag.mcp-section-name.malformed-mcp-section-identity": "MCP 章节标识格式无效。",

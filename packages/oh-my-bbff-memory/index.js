@@ -22,6 +22,7 @@ import { registerMemoryTools, MEMORY_TOOL_NAMES, MEMORY_TOOL_TRAITS } from './li
 import { DREAM_TOOL_NAMES, DREAM_TOOL_TRAITS } from './lib/dream-tools.js'
 import { dreamingPaths } from './lib/dreaming/state.js'
 import { createSessionSource } from './lib/dreaming/sessions.js'
+import { createMemorySessionBudget } from './lib/session-budget.js'
 import { createDreamingKernel } from './lib/dreaming/kernel.js'
 import { createDreamingResident } from './lib/dreaming/resident.js'
 import { adoptNativeSchedule } from './lib/dreaming/adoption.js'
@@ -55,11 +56,14 @@ export function apply(ctx, config = {}) {
   const readKey = id => { const session = id && get('agents')?.get?.(id)?.session;let identity = null;if (session) { if (!liveIds.has(session)) liveIds.set(session, ++liveSequence);identity = liveIds.get(session) }return JSON.stringify([id || null,identity,session?.seq ?? null,fileToken(settingPath.file),fileToken(togglePath.file),fileToken(paths.statePath)]) }
   const resolver = createRootResolver({ getFamily: () => get(FAMILY_SERVICE), getAgents: () => get('agents'), getPersistence: () => get('sessionPersistence'), getSessionQuery: () => get('sessionQuery'), logger: ctx.logger })
   const resolveRoot = (id, hint = {}) => resolver.resolve(id, hint)
-  const sessionReads = createSessionReadCache(ctx, { getSettings: settings, checkpointDirectory: join(home, DEFAULT_DATA.storage.settingsDirectory, DEFAULT_DATA.storage.sessionReadCheckpointDirectory) })
+  // One read-surface budget: thresholds come from the family settings (BBFF advanced limits); the
+  // contract resolves and clamps them and Memory never keeps a second copy.
+  const sessionBudget = createMemorySessionBudget({ home, getSettings: settings })
+  const sessionReads = createSessionReadCache(ctx, { getSettings: settings, sessionBudget, checkpointDirectory: join(home, DEFAULT_DATA.storage.settingsDirectory, DEFAULT_DATA.storage.sessionReadCheckpointDirectory) })
   const budget = createBudgetResolver({ getSettings: settings, getLlm: () => get('llm'), getDefaultModel: () => get('agentDefaultModel'),  })
   const tokenCounter = createTokenCounter(), measureReviewFile = createInstructionDisplayReader(tokenCounter)
   const injection = createMemoryInjection({ ctx, home, globalDir: paths.memoryRoot, getSettings: settings, resolveRoot, getToggles: toggles, readCache: sessionReads, resolveBudget: budget.resolve, tokenCounter, logger: ctx.logger })
-  const source = createSessionSource({ getPersistence: () => get('sessionPersistence'), getQuery: () => get('sessionQuery'), getAgents: () => get('agents'), getRoot: id => resolveRoot(id), getSettings: settings, readCache: sessionReads, logger: ctx.logger })
+  const source = createSessionSource({ getPersistence: () => get('sessionPersistence'), getQuery: () => get('sessionQuery'), getAgents: () => get('agents'), getRoot: id => resolveRoot(id), getSettings: settings, readCache: sessionReads, sessionBudget, logger: ctx.logger })
   const kernel = createDreamingKernel({ paths, getSettings: settings, source, logger: ctx.logger }), resident = createDreamingResident({ ctx, kernel, getSettings: settings, logger: ctx.logger }), native = createNativeInstructionReader(ctx, { tokenCounter }), skill = createManagedSkill({ home, paths, getSettings: settings })
   const presetBudget = createPresetBudgetManager({ getProfile: () => get('profileContext') })
   const startupBudget = presetBudget.status();if (startupBudget.drift === true) warn(logText(startupBudget.reason))
@@ -76,7 +80,7 @@ export function apply(ctx, config = {}) {
   async function requireActor(sessionId) { const permission = await actorPermission(sessionId);if (!permission.allowed) throw localeError(permission.reason);return permission }
   const controlCapabilities = async sessionId => {
     const actor = await actorPermission(sessionId), state = kernel.readState().state
-    return { settingsWrite: true, settingsAuthority: 'Explicit operator Web UI settings action; model tools retain their root-only write guard.', rootWrite: actor.allowed, wake: actor.allowed && settings().dreamEnabled && !state.stateUnavailable && (await resident.residentStatus()) !== 'running', historyRevert: actor.allowed && !state.stateUnavailable, reason: actor.allowed ? '' : actor.reason }
+    return { settingsWrite: true, settingsAuthority: 'Explicit operator Web UI settings action; model tools retain their root-only write guard.', rootWrite: actor.allowed, wake: actor.allowed && settings().dreamEnabled && !state.stateUnavailable && (await resident.residentStatus()) !== 'running', historyRevert: actor.allowed && !state.stateUnavailable, rotate: actor.allowed && !state.stateUnavailable && (await resident.residentStatus()) !== 'running', reason: actor.allowed ? '' : actor.reason }
   }
   async function fullSettings(sessionId, measure = async (_name, fn) => fn(), signal) {
     let managed, effectiveBudgetView = null
@@ -103,7 +107,7 @@ export function apply(ctx, config = {}) {
     status.nextDueAt = schedule.nextDueAt;status.due = schedule.available && schedule.status === 'active' && schedule.nextDueAt <= Date.now();status.schedule = schedule
     const reviewMeasurements = await measure('review-byte-budget-token-estimate', async () => { const review = kernel.reviewInventory(), fs = actorFs(sessionId), rows = [];for (const file of review.files) rows.push(await measureReviewFile(fs, file.path, { signal, nativeMaxSourceBytes: settings().memorySourceMaxBytes }));return rows })
     status.budget = { ...status.budget, tokenEstimate: estimateByteCap(status.budget.budgetBytes, reviewMeasurements), measuredFiles: reviewMeasurements.filter(row => row.readable).length, unreadableFiles: reviewMeasurements.filter(row => !row.readable).length, tokenizer: tokenCounter.basis(null) }
-    return { ok: true, defaults: metadata.defaults, sources: metadata.sources, policies: metadata.policies, ...status, residentStatus: await measure('resident-observed-status', () => resident.residentStatus()), lastResult: resident.lastResult(), residentTools: await measure('resident-operational-tool-view', () => resident.toolView()), model: await measure('model-and-retained-preset-facts', () => resident.modelView()), capabilities: await measure('operator-authority', () => controlCapabilities(sessionId)) }
+    return { ok: true, defaults: metadata.defaults, sources: metadata.sources, policies: metadata.policies, ...status, residentStatus: await measure('resident-observed-status', () => resident.residentStatus()), lastResult: resident.lastResult(), sessionRead: sessionBudget.describe(), residentTools: await measure('resident-operational-tool-view', () => resident.toolView()), model: await measure('model-and-retained-preset-facts', () => resident.modelView()), rotation: await measure('resident-rotation-view', () => resident.rotationView()), capabilities: await measure('operator-authority', () => controlCapabilities(sessionId)) }
   }
   function seed(name, sessionId) {
     const metadata = settingsView(), base = { ok: true, sessionId, settings: metadata.settings, defaults: metadata.defaults, sources: metadata.sources, policies: metadata.policies, fields: metadata.fields, readonlyPrompts: metadata.readonlyPrompts, groups: metadata.groups, limits: metadata.limits, storage: metadata.storage, source: metadata.source, diagnostics: metadata.diagnostics, settingDescriptors: metadata.settingDescriptors }
@@ -146,6 +150,7 @@ export function apply(ctx, config = {}) {
     if (action === 'native-budget-preview') { const preview = body.sourceId === MANAGED_BUDGET_SOURCE ? presetBudget.preview(body) : native.preview(body);return { ok: true, ...(preview.kind === 'declaring-composition' ? presetBudget.preview(body) : preview), applied: false } }
     if (action === 'native-budget-apply') { await requireActor(body.sessionId);if (body.confirm !== true) throw localeError(msg('error.nativeConfirmRequired'));return serial(async () => { const response = { ok: true, ...await (body.sourceId === MANAGED_BUDGET_SOURCE ? presetBudget.apply(body) : native.apply(body)) };polledReads.invalidate();return response }) }
     if (action === 'dream-wake') { await requireActor(body.sessionId);if (body.confirm !== true) throw localeError(msg('error.wakeConfirmRequired'));return { ok: true, result: await resident.wake({ kind: 'manual-user', force: true }), dreaming: await dreamingStatus(body.sessionId) } }
+    if (action === 'dream-rotate') { await requireActor(body.sessionId);if (body.confirm !== true) throw localeError(msg('error.rotateConfirmRequired'));const result = await serial(() => resident.rotate({ trigger: 'manual', reason: typeof body.reason === 'string' ? body.reason : null }));polledReads.invalidate();return { ok: true, result, dreaming: await dreamingStatus(body.sessionId) } }
     if (action === 'dream-revert-preview') return { ok: true, preview: kernel.previewRevert({ id: body.id }), applied: false }
     if (action === 'dream-revert-apply') { await requireActor(body.sessionId);if (body.confirm !== true) throw localeError(msg('error.revertConfirmRequired'));return serial(() => { const response = { ok: true, result: kernel.revert(body), applied: true };polledReads.invalidate();return response }) }
     if (action === 'candidate-review') { await requireActor(body.sessionId);if (typeof body.reason !== 'string' || !body.reason.trim() || body.reason.length > settings().stageReasonMaxChars) throw localeError(msg('error.reviewReasonRequired'));return { ok: true, result: kernel.decideCandidate({ ids: body.ids, status: body.status, reason: body.reason }) } }

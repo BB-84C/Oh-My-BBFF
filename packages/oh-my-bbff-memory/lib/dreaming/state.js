@@ -69,6 +69,13 @@ export function initialState(now) {
     lastCheckedAt: now,
     lastCommitAt: null,
     residentSessionId: null,
+    // Rotation audit: the retired Resident ids (the schedule adapter's proof that its stored
+    // target may be re-pointed) and the last rotation with its handoff note.
+    previousResidentSessionIds: [],
+    rotation: null,
+    rotationCount: 0,
+    // Consecutive identical rotation failures; escalates to an operator-visible diagnostic after N.
+    rotationFailures: null,
     activeRun: null,
     execution: { status: 'idle', phase: null, lastError: null, retry: null, updatedAt: now },
     checkpoint: { at: now, sessions: {} },
@@ -117,6 +124,12 @@ function normalizeState(parsed, now, errorHistoryLimit) {
     }
   }
   state.errors = Array.isArray(parsed.errors) ? parsed.errors.slice(-errorHistoryLimit) : []
+  state.previousResidentSessionIds = Array.isArray(parsed.previousResidentSessionIds) ? [...new Set(parsed.previousResidentSessionIds.filter(id => typeof id === 'string' && id.trim()))] : []
+  state.rotation = parsed.rotation && typeof parsed.rotation === 'object' && !Array.isArray(parsed.rotation) ? { ...parsed.rotation } : null
+  state.rotationCount = Number.isSafeInteger(parsed.rotationCount) && parsed.rotationCount >= 0 ? parsed.rotationCount : 0
+  state.rotationFailures = parsed.rotationFailures && typeof parsed.rotationFailures === 'object' && !Array.isArray(parsed.rotationFailures) && Number.isSafeInteger(parsed.rotationFailures.count)
+    ? { reason: typeof parsed.rotationFailures.reason === 'string' ? parsed.rotationFailures.reason : 'unknown', count: parsed.rotationFailures.count, firstAt: parsed.rotationFailures.firstAt ?? null, lastAt: parsed.rotationFailures.lastAt ?? null }
+    : null
   state.execution = parsed.execution && typeof parsed.execution === 'object' ? { ...base.execution, ...parsed.execution } : { ...base.execution, lastError: state.errors.at(-1) || null, status: state.errors.length ? 'failed' : 'idle' }
   return state
 }

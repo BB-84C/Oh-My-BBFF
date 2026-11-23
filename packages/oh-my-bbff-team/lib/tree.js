@@ -18,20 +18,22 @@ import { createLedger } from './ledger.js'
 import { createFold, foldEvent, FED_REVISION_PREFIX } from './ledger-feed.js'
 import { normalizeTeamSettings } from './team-settings.js'
 
+import { SESSION_READ_SKIP_CODE } from './bbff-contract.js'
+import { createTeamSessionBudget } from './session-budget.js'
 const CATALOG_KEY = 'subagentCatalog'
 // Every catalog child of the Lead belongs to its team (DSH 0.2.2 has no separate membership).
 const CHILD_MODES = new Set(['continuable', 'one-shot', 'external'])
 
 export const TREE_READ_POLICY = Object.freeze({ coldRevalidateMs: 30_000, statConcurrency: 8, validatedEntries: 4096, readBatchEvents: 64, yieldAfterMs: 8 })
 
-export function createTree(get, { bindings = null, ledger = null, getSettings = () => ({}), now = Date.now, coldRevalidateMs = TREE_READ_POLICY.coldRevalidateMs } = {}) {
+export function createTree(get, { bindings = null, ledger = null, getSettings = () => ({}), now = Date.now, coldRevalidateMs = TREE_READ_POLICY.coldRevalidateMs, sessionBudget = createTeamSessionBudget(getSettings, { now }) } = {}) {
   const service = () => get('subagents')
   const store = ledger || createLedger()
   const ownsLedger = !ledger
   let disposed = false
   // sessionId -> { revision, at } of the last stat; reset by invalidate().
   const validated = new Map(), walks = new Map(), statFlights = new Map()
-  const reads = { stats: 0, decodes: 0 }
+  const reads = { stats: 0, decodes: 0, skipped: 0 }
   const liveAgent = id => { try { return get('agents')?.get?.(String(id)) } catch { return undefined } }
   /** The live tree root, or null when the agent is not (yet) published in a tree. */
   function rootOf(agent) {
@@ -184,6 +186,15 @@ export function createTree(get, { bindings = null, ledger = null, getSettings = 
     const persistence = get('sessionPersistence')
     // A log that cannot be opened is recorded with its reason for this revision (no retry until it changes).
     if (typeof persistence?.open !== 'function') { store.note(id, { revision, syncedAt: Date.now(), syncError: 'Session persistence cannot open logs' }); return 'synced' }
+    // Owner read budget (contract): a large, long-untouched log is never opened. The
+    // member's fact records the skip with the session id, size and age — coverage is
+    // visible and the queue never retries this revision.
+    const budget = await sessionBudget.check(id)
+    if (budget.skipped) {
+      reads.skipped += 1
+      store.note(id, { revision, syncedAt: Date.now(), skipped: { code: SESSION_READ_SKIP_CODE, sizeBytes: budget.stats?.sizeBytes ?? null, ageMs: budget.ageMs, maxSizeMb: budget.limits?.maxSizeMb ?? null, maxAgeDays: budget.limits?.maxAgeDays ?? null } })
+      return 'skipped'
+    }
     reads.decodes += 1
     const settings = normalizeTeamSettings(getSettings()), acc = createFold(Math.max(50, settings.activityMaxLimit))
     let handle

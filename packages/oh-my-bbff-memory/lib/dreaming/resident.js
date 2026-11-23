@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { PACKAGE_NAME } from '../identity.js'
 import { createResidentSchedule, isResidentDelivery } from './schedule.js'
+import { rotationBudget, rotationCapacity, rotationDecision, rotationHandoff, retiredResidentTitle } from './rotation.js'
 import { createDreamToolDefinitions, registerDreamTools, DREAM_TOOL_NAMES } from '../dream-tools.js'
 import { RESIDENT_TITLE } from './state.js'
 import { createLeaseHandle } from './lease.js'
@@ -12,7 +13,7 @@ import { DEFAULT_DATA, PROMPT_DEFAULTS, renderPrompt, shippedSettings } from '..
 import { normalizeSettings, legacySettings } from '../settings.js'
 import { byteLength, truncateUtf8 } from '../text.js'
 import { readAgentService, traceAgentService } from '../scoped-services.js'
-import { nativeToolSource, promptSectionConvention, sessionEventFacts, sessionHeaderFacts } from '../dsh-adapter.js'
+import { contextPressureFacts, nativeToolSource, projectionKey, promptSectionConvention, sessionEventFacts, sessionHeaderFacts } from '../dsh-adapter.js'
 export const RESIDENT_PRESET = 'oh-my-bbff-memory-dreaming'
 export const SOURCE_KIND = DEFAULT_DATA.contract.sourceKind
 const defaultVariables = { intervalHours: DEFAULT_DATA.fields.wakeIntervalHours.default }
@@ -30,16 +31,19 @@ function foreignSources(names) {
   }
   return [...grouped.values()]
 }
-export function buildWakePrompt({ runId, kind, now, decision, delta, inventory = [], budgetBytes = 0, totalBytes = 0, previousState, settings = shippedSettings(), candidates = { total: 0, pending: 0 }, maxBytes = settings.dreamPromptMaxBytes, variables = {} }) {
+export function buildWakePrompt({ runId, kind, now, decision, delta, inventory = [], budgetBytes = 0, totalBytes = 0, previousState, settings = shippedSettings(), candidates = { total: 0, pending: 0 }, maxBytes = settings.dreamPromptMaxBytes, variables = {}, rotation = null }) {
   const values = { ...variables, intervalHours: settings.wakeIntervalHours }, entries = delta?.entries || [], previewCount = settings.dreamWakeSessionLimit, lines = [
     '# Dreaming review ' + runId,
     renderPrompt(settings.prompts.wakeContract, values),
     `Wake kind: ${kind}. Now: ${formatTime(now)}. Previous wake: ${formatTime(previousState?.lastWakeAt)}.`,
     `Configured interval: ${settings.wakeIntervalHours} h; elapsed: ${Number.isFinite(decision?.elapsedMs) ? (decision.elapsedMs / 3600000).toFixed(2) : 'unknown'} h.`,
-    '## Human input manifest',
   ]
-  if (!delta || delta.stats?.unavailable || delta.stats?.failedReason || delta.stats?.blocked?.length) lines.push(renderPrompt(settings.prompts.wakeIncompleteNotice, { ...values, reason: delta?.stats?.failedReason || 'source unavailable or blocked; inspect dream_delta diagnostics' }))
-  lines.push(`${entries.length} visible session(s), ${delta?.stats?.messages ?? 0} input fragment(s), ${delta?.stats?.bytes ?? 0} source byte(s).`)
+  // A rotated session starts with the handoff: which session was retired, where the checkpoint
+  // stood, and what was unresolved. Delivered once, then dropped from the durable state.
+  if (rotation?.handoff) lines.push('## Rotation handoff', rotation.handoff)
+  lines.push('## Human input manifest')
+  if (!delta || delta.stats?.unavailable || delta.stats?.failedReason || delta.stats?.blocked?.length || delta.stats?.sessionsSkipped) lines.push(renderPrompt(settings.prompts.wakeIncompleteNotice, { ...values, reason: delta?.stats?.failedReason || (delta?.stats?.sessionsSkipped ? String(delta.stats.sessionsSkipped) + ' session log(s) skipped by the session-read budget; coverage is partial' : 'source unavailable or blocked; inspect dream_delta diagnostics') }))
+  lines.push(`${entries.length} visible session(s), ${delta?.stats?.messages ?? 0} input fragment(s), ${delta?.stats?.bytes ?? 0} source byte(s); ${delta?.stats?.sessionsRead ?? 0} session log(s) decoded for this review; ${delta?.stats?.sessionsSkipped ?? 0} skipped by the session-read budget.`)
   for (const entry of entries.slice(0, previewCount)) lines.push(`- ${entry.sessionId} cwd=${entry.cwd || 'unknown'} events ${entry.fromIndex}:${entry.fromOffset || 0}..${entry.toIndex}:${entry.toOffset || 0}; fragments=${entry.messageCount}, bytes=${entry.bytes}`)
   lines.push(`Preview omitted sessions: ${Math.max(0, entries.length - previewCount)}. Use paginated dream_delta/dream_page; unread input is retained. Unscanned candidate sessions: ${delta?.stats?.unscannedSessions || 0}.`)
   lines.push('## Untrusted proposals', `Candidate files: ${candidates.total ?? 'unknown'}, pending: ${candidates.pending ?? 'unknown'}. List/read opaque ids with dream_read; proposals are not accepted memory.`)
@@ -57,6 +61,12 @@ export function createDreamingResident({ ctx, kernel, config = {}, getSettings, 
   const initial = current(), lease = createLeaseHandle({ lockPath: paths.lockPath, staleMs: initial.leaseStaleMs, heartbeatMs: initial.leaseHeartbeatMs, now, logger })
   const dreamDefinitions = createDreamToolDefinitions({ kernel, lease, logger, getSchedule: () => schedule.view() }), scopes = new Map(), lifecycle = []
   let handle = null, sessionAction = null, disposed = false, started = false, inFlight = false, lastResult = null, knownId = null, sessionPromise = null, presetPromise = null, unregisterPreset = null, startPromise = null, retryTimer = null
+  /** Set only while a rotation is creating the replacement session; `openSession` must not reuse. */
+  let rotationPending = null, routeCapacityCache = null
+  /** A wake that was rejected for rotation is re-delivered once the interrupted turn settles. */
+  let pendingRedelivery = null
+  /** A rotation was decided while a turn was running; it runs at the next idle boundary, never inside it. */
+  let rotationRequested = null, maintenancePromise = null
   const alive = () => { if (disposed) throw new Error('Resident was disposed during this operation.') }
   const warn = message => { try { logger?.warn?.('Memory Resident: ' + message) } catch {} }
   const service = name => { try { return ctx.get(name) } catch { return undefined } }
@@ -137,6 +147,15 @@ export function createDreamingResident({ ctx, kernel, config = {}, getSettings, 
         try {
           const review = await prepareReview(message)
           if (!review) return { kind: 'reject' }
+          if (review.rotate) {
+            // The next request would exceed the route window: never send it, and never rotate from
+            // inside this turn either (disposing the Agent mid-turn is what wedged the Resident
+            // before). Refuse this wake and let the idle boundary rotate and re-deliver it.
+            const state = kernel.readState().state
+            if (state.scheduleTaskId) pendingRedelivery = { taskId: state.scheduleTaskId, at: now() }
+            warn('A wake was deferred for rotation: ' + String(review.rotate.capacity?.headroomTokens ?? 'unknown') + ' tokens of headroom; rotation runs after this turn.')
+            return { kind: 'reject' }
+          }
           return { ...decision, messages: [...decision.messages, createUserMessage({ content: [{ type: 'text', text: review.prompt }], source: { kind: SOURCE_KIND, form: 'notice', summary: 'Dreaming review ' + review.runId, runId: review.runId } })] }
         } catch (error) { observeError(agent, error);throw error }
       }, { prepend: true }))
@@ -157,7 +176,12 @@ export function createDreamingResident({ ctx, kernel, config = {}, getSettings, 
     lastResult = { ran: false, reason: 'agent-error', error: name, at: now() }
   }
   function observeStatus(agent, status) {
-    if (disposed || String(agent.id) !== residentId()) return
+    if (disposed) return
+    // No turn is open at this boundary: this is the only place a rotation may run, and a wake that
+    // was deferred because the request would not fit is re-delivered here (run-now is inadmissible
+    // while a delivery is inside its floor).
+    if (status !== 'running' && (pendingRedelivery || rotationRequested)) maintain()
+    if (String(agent.id) !== residentId()) return
     try {
       const state = kernel.readState().state
       if (status === 'running') kernel.recordOutcome({ status: 'running', phase: 'running' })
@@ -219,8 +243,8 @@ export function createDreamingResident({ ctx, kernel, config = {}, getSettings, 
     // A disposed generation must not mount the preset or install tools into a half-created
     // Agent: the native create callback can still run after dispose began.
     const setup = async (agentCtx, agent) => { alive();await presets.mount(agentCtx, RESIDENT_PRESET);alive();install(agent);return { commit: () => assertTools(agent) } }
-    const closing = handle;let existing = liveAgent(), temporary = null
-    if (!existing && state.residentSessionId) {
+    const closing = handle;let existing = rotationPending ? null : liveAgent(), temporary = null
+    if (!existing && !rotationPending && state.residentSessionId) {
       // Resume only to recover the owner's durable route and saved preset, never a shared default.
       temporary = await agents.resume({ resumeSessionId: state.residentSessionId, agentOptions: {}, setup: async (agentCtx, agent) => { const saved = presets.presetForSession(agent.session);if (!saved) throw new Error('Historical Resident has no verifiable saved preset.');await presets.mount(agentCtx, saved) } })
       if (disposed) { await temporary.dispose();alive() }
@@ -236,16 +260,28 @@ export function createDreamingResident({ ctx, kernel, config = {}, getSettings, 
         install(existing);handle = temporary || closing || { agent: existing, async dispose() {} };sessionAction = 'migrated-blank-session';return handle
       } catch (error) { if (error?.code !== 'agent-preset/locked') { await temporary?.dispose();throw error } }
     }
-    const selected = desiredRoute(existing) || firstActivationRoute(existing)
+    // A rotation must hand the retired session's route to its replacement. Without this the fresh
+    // session seeds from the shared DSH default, which is not the owner's Resident pin.
+    const carried = rotationPending?.carriedRoute || null
+    const selected = carried || desiredRoute(existing) || firstActivationRoute(existing)
     if (!selected) { await temporary?.dispose();throw new Error('Resident owner-selected route is unavailable; configure it explicitly before first activation. No global default is used.') }
     const { basis, ...agentOptions } = selected
-    if (basis === 'dsh-default-first-activation') warn('First activation seeds the Resident from the native default selection; the Resident session owns the route from then on.')
+    if (basis === 'dsh-default-first-activation' && !rotationPending) warn('First activation seeds the Resident from the native default selection; the Resident session owns the route from then on.')
+    if (rotationPending && !carried) warn('The retired Resident route could not be read; the replacement runs the DSH default and the rotation record says so.')
     mkdirSync(paths.residentWorkspace, { recursive: true })
     const sessionId = 'session-' + randomUUID()
     handle = await agents.create({ sessionId, meta: { cwd: paths.residentWorkspace, agentPreset: RESIDENT_PRESET }, agentOptions, setup });knownId = sessionId
     if (disposed) { const closingHandle = handle;handle = null;await closingHandle?.dispose();alive() }
-    const previous = state.residentSessionId, latest = kernel.readState().state
-    kernel.write({ ...latest, residentSessionId: sessionId, ...(previous ? { previousResidentSessionIds: [...new Set([...(latest.previousResidentSessionIds || []), previous])], residentMigration: { from: previous, to: sessionId, at: now(), reason: 'native-preset-locked; retained fail-closed Resident boundary' } } : {}) });sessionAction = previous ? 'migrated-locked-session' : 'created'
+    const previous = rotationPending?.from ?? state.residentSessionId, latest = kernel.readState().state
+    const appliedRoute = selected ? { provider: selected.provider, model: selected.model, ...(selected.reasoningEffort ? { reasoningEffort: selected.reasoningEffort } : {}), source: carried ? 'carried-from-retired-session' : basis === 'memory-fixed' ? 'memory-fixed' : 'dsh-default-fallback' } : null
+    const rotation = rotationPending ? { at: rotationPending.at, from: previous, to: sessionId, trigger: rotationPending.trigger, reason: rotationPending.reason, phase: 'created', carriedRoute: appliedRoute, routeUnavailable: carried ? null : rotationPending.routeUnavailable || 'retired-resident-route-unreadable' } : null
+    kernel.write({
+      ...latest,
+      residentSessionId: sessionId,
+      ...(previous ? { previousResidentSessionIds: [...new Set([...(latest.previousResidentSessionIds || []), previous])] } : {}),
+      ...(rotation ? { rotation } : previous ? { residentMigration: { from: previous, to: sessionId, at: now(), reason: 'native-preset-locked; retained fail-closed Resident boundary' } } : {}),
+    })
+    sessionAction = previous ? (rotationPending ? 'created-after-rotation' : 'migrated-locked-session') : 'created'
     const title = readAgentService(handle.agent, 'sessionTitle', presets)
     if (title?.rename && handle.agent.ctx.reflect?.trace) handle.agent.ctx.reflect.trace(title).rename(handle.agent.session, RESIDENT_TITLE)
     if (previous && existing) {
@@ -264,6 +300,8 @@ export function createDreamingResident({ ctx, kernel, config = {}, getSettings, 
     if (!started) return
     const result = await schedule.configure()
     if (disposed) return result
+    // Adopting on start is an idle boundary: bound the session now instead of waiting a whole interval.
+    if (value.rotationEnabled && !rotationPending) maintain()
     return result
   }
   /**
@@ -301,6 +339,22 @@ export function createDreamingResident({ ctx, kernel, config = {}, getSettings, 
     if (disposed || !current().dreamEnabled || inFlight) return null
     const value = current(), state = kernel.readState().state
     if (state.stateUnavailable) return null
+    // Bounded context: an oversized request must never reach the provider — with the route's
+    // completion reserved, DSH's compaction threshold sits at the same line the request dies on.
+    // Being over the rotation threshold is NOT the same as not fitting: rotate at the next idle
+    // boundary and still run this wake whenever the request fits.
+    if (value.rotationEnabled) {
+      const facts = await rotationFacts(liveAgent(), value)
+      if (disposed) return null
+      if (facts.decision.rotate) {
+        const capacity = rotationCapacity({ budget: facts.budget, usedTokens: facts.pressure.available ? facts.pressure.usedTokens : null, promptAllowanceTokens: DEFAULT_DATA.policies.wakePromptTokenAllowance })
+        requestRotation({ ...facts, capacity }, capacity.available && capacity.fits ? 'idle-boundary-after-wake' : 'window-exceeded')
+        if (!capacity.available || !capacity.fits) {
+          lastResult = { ran: false, reason: 'rotation-required-window-exceeded', at: now(), pressure: facts.pressure, budget: facts.budget, decision: facts.decision, capacity }
+          return { rotate: { ...facts, capacity } }
+        }
+      }
+    }
     const acquired = lease.acquire();if (!acquired.acquired) { lastResult = { ran: false, reason: 'lease:' + acquired.reason, at: now() };return null }
     inFlight = true
     try {
@@ -314,13 +368,218 @@ export function createDreamingResident({ ctx, kernel, config = {}, getSettings, 
       kernel.bindRunDelta({ runId, deltaId: delta.deltaId })
       if (disposed) return null
       kernel.write({ ...kernel.readState().state, scheduleLastMessageId: message.id })
-      const review = kernel.reviewInventory(delta), prompt = buildWakePrompt({ runId, kind: 'native-schedule', now: now(), decision: kernel.decide().decision, delta, inventory: review.files, budgetBytes: review.budget.budgetBytes, totalBytes: review.budget.totalBytes, previousState: state, settings: value, candidates: kernel.candidates(), variables: variables() })
+      const retirement = kernel.readState().state.rotation, pendingRotation = retirement?.handoff && !retirement.handoffDeliveredAt && retirement.to === String(residentId() || '') ? retirement : null
+      const review = kernel.reviewInventory(delta), prompt = buildWakePrompt({ runId, kind: 'native-schedule', now: now(), decision: kernel.decide().decision, delta, inventory: review.files, budgetBytes: review.budget.budgetBytes, totalBytes: review.budget.totalBytes, previousState: state, settings: value, candidates: kernel.candidates(), variables: variables(), rotation: pendingRotation })
       if (disposed) return null
+      // The handoff is delivered exactly once: the next review after a rotation reads it, later
+      // requests do not keep paying for it.
+      if (pendingRotation) { const latest = kernel.readState().state;if (latest.rotation?.handoff === pendingRotation.handoff) kernel.write({ ...latest, rotation: { ...latest.rotation, handoffDeliveredAt: now() } }) }
       kernel.recordOutcome({ status: 'running', phase: 'running', lastError: null, retry: null })
       const selected = desiredRoute(liveAgent())
       lastResult = { ran: true, runId, deltaId: delta.deltaId, kind: 'native-schedule', at: now(), sessionAction, sessions: delta.entries.length, promptBytes: byteLength(prompt), route: selected, scheduleTaskId: kernel.readState().state.scheduleTaskId }
       return { prompt, runId }
     } finally { inFlight = false }
+  }
+  /**
+   * The Resident session's current request pressure, read from the native context-pressure
+   * projection (state view). Absent service/projection is reported, never guessed: rotation then
+   * simply does not fire automatically, and the operator still has the explicit action.
+   */
+  function sessionPressure() {
+    const agent = liveAgent(), session = agent?.session
+    if (!session) return { available: false, reason: 'resident-session-unavailable' }
+    let projections
+    try { projections = service('sessionProjections') } catch { projections = undefined }
+    if (typeof projections?.stateOf !== 'function') return { available: false, reason: 'context-pressure-projection-unavailable' }
+    let raw
+    try { raw = projections.stateOf(session, projectionKey('context-pressure')) } catch (error) { return { available: false, reason: 'context-pressure-read-failed', error: String(error?.message || error) } }
+    const facts = contextPressureFacts(raw, { view: 'state' })
+    const value = facts?.value
+    if (!value || value.usedTokens === null || value.usedTokens === undefined || value.basis === 'unavailable') return { available: false, reason: 'context-pressure-unavailable', diagnostics: facts?.diagnostics || [] }
+    return { available: true, sessionId: String(session.id), usedTokens: value.usedTokens, windowTokens: value.windowTokens ?? null, percent: value.percent ?? null, pressureTokens: value.pressureTokens ?? null, basis: value.basis }
+  }
+  /** The route's advertised capacity: context window and the completion the request reserves. */
+  async function routeCapacity(route) {
+    const key = route ? JSON.stringify([route.provider, route.model]) : 'unknown'
+    if (routeCapacityCache && routeCapacityCache.key === key && now() - routeCapacityCache.at >= 0 && now() - routeCapacityCache.at < DEFAULT_DATA.policies.budgetWindowCacheMs) return routeCapacityCache.value
+    if (!route || typeof service('llm')?.resolveModelInfo !== 'function') return null
+    try {
+      const info = await service('llm').resolveModelInfo(route.provider, route.model)
+      const value = {
+        route: { provider: route.provider, model: route.model },
+        contextWindow: Number.isSafeInteger(info?.context?.contextWindow) ? info.context.contextWindow : null,
+        reservedCompletionTokens: Number.isSafeInteger(info?.defaultMaxTokens) ? info.defaultMaxTokens : null,
+      }
+      routeCapacityCache = { key, at: now(), value }
+      return value
+    } catch (error) { warn('The route capacity for rotation is unavailable: ' + String(error?.message || error)); return null }
+  }
+  /** Pressure + safe threshold for the current settings. Never changes the owner's route pin. */
+  async function rotationFacts(agent = liveAgent(), settings = current()) {
+    const pressure = sessionPressure(), route = desiredRoute(agent), capacity = await routeCapacity(route)
+    const windowTokens = pressure.windowTokens ?? capacity?.contextWindow ?? null
+    const budget = rotationBudget({ contextWindow: windowTokens, reservedCompletionTokens: capacity?.reservedCompletionTokens ?? null, configuredRatio: settings.rotationContextRatio })
+    const decision = rotationDecision({ enabled: settings.rotationEnabled, usedTokens: pressure.available ? pressure.usedTokens : null, budget })
+    return { enabled: settings.rotationEnabled, configuredRatio: settings.rotationContextRatio, route: route ? { provider: route.provider, model: route.model } : null, capacity, pressure, budget, decision }
+  }
+  /**
+   * Rotate the Resident onto a fresh session. This is the supported operator path, so nobody has
+   * to edit state.json: the retired id stays in `previousResidentSessionIds` (the native schedule
+   * adapter's proof that the stored target may be re-pointed), the old session is retitled while
+   * its Agent is still live, and the replacement opens through `openSession()` with a handoff note.
+   * A running review is never interrupted; an unresolved review is recorded, never replayed.
+   */
+  /**
+   * The session's durable turn boundary (native projection): `openTurnStartSeq !== null` means a turn
+   * is genuinely open. This is the evidence a stuck `status === 'running'` is judged against — never
+   * a guess, and never a reason to interrupt a real review.
+   */
+  function turnState() {
+    const agent = liveAgent(), session = agent?.session
+    if (!session) return { known: false, reason: 'resident-session-unavailable' }
+    let boundary
+    try { boundary = service('sessionProjections')?.stateOf?.(session, 'turnBoundary') } catch (error) { return { known: false, reason: 'turn-boundary-read-failed', error: String(error?.message || error) } }
+    if (!boundary || typeof boundary !== 'object') return { known: false, reason: 'turn-boundary-unavailable' }
+    return { known: true, open: boundary.openTurnStartSeq !== null && boundary.openTurnStartSeq !== undefined, openTurnStartSeq: boundary.openTurnStartSeq ?? null, lastTurn: boundary.lastTurn ?? null, lastStepBoundary: boundary.lastStepBoundary ?? null }
+  }
+  /** A wake could not be sent; rotating now is not safe inside the turn, so do it at the idle boundary. */
+  function requestRotation(facts, trigger) {
+    rotationRequested = { at: now(), trigger, decision: facts.decision || null, capacity: facts.capacity || null }
+    return rotationRequested
+  }
+  /** Escalating, de-duplicated accounting for consecutive identical rotation failures. */
+  function noteRotationFailure(error) {
+    const message = String(error?.message || error), state = kernel.readState().state, previous = state.rotationFailures
+    const count = previous && previous.reason === message ? (previous.count || 0) + 1 : 1
+    const record = { reason: message, count, firstAt: count === 1 ? now() : previous.firstAt || now(), lastAt: now() }
+    try { kernel.write({ ...kernel.readState().state, rotationFailures: record }) } catch {}
+    const escalateAfter = DEFAULT_DATA.policies.rotationEscalateAfter || 3
+    // One durable error at the first failure and then only at escalation steps: never the same line
+    // appended every tick, and the escalated entry says what the operator has to do.
+    if (count === 1) { try { kernel.recordFailure({ scope: 'rotation', message }) } catch {} }
+    else if (count === escalateAfter) {
+      try { kernel.recordFailure({ scope: 'rotation', message: `Rotation has failed ${count} times in a row (${message}). Operator action may be required; the Resident keeps its current session until a rotation succeeds.` }) } catch {}
+    }
+    return record
+  }
+  /**
+   * Idle-boundary maintenance: rotate when a rotation was requested (or the session is over the
+   * threshold), then re-deliver a wake that was rejected because the request would not fit.
+   * Runs only when no turn is open, so a live review is never interrupted.
+   */
+  function maintain() {
+    if (disposed || maintenancePromise) return maintenancePromise
+    maintenancePromise = (async () => {
+      try {
+        const value = current()
+        if (value.rotationEnabled && !rotationPending) {
+          const turn = turnState()
+          if (turn.known && turn.open) return
+          const facts = await rotationFacts()
+          if (rotationRequested || facts.decision.rotate) {
+            try { await rotate({ trigger: 'context-pressure', reason: rotationRequested ? 'idle-boundary-after-wake' : 'idle-boundary-threshold' }) }
+            catch (error) { warn('Idle-boundary rotation failed: ' + String(error?.message || error));noteRotationFailure(error);return }
+          }
+        }
+        if (pendingRedelivery) {
+          pendingRedelivery = null
+          try { await schedule.run() } catch (error) { warn('The deferred wake could not be re-delivered: ' + String(error?.message || error)) }
+        }
+      } finally { maintenancePromise = null }
+    })()
+    return maintenancePromise
+  }
+  async function rotate({ trigger = 'manual', reason = null, pressure = null, facts = null } = {}) {
+    alive()
+    if (disposed) throw new Error('Resident was disposed before rotation.')
+    const value = current(), agent = liveAgent()
+    if (!value.rotationEnabled && trigger !== 'manual') return { rotated: false, reason: 'rotation-disabled' }
+    // A genuinely open turn is never interrupted. A `status === 'running'` with no open turn in the
+    // session's durable boundary is stale: rotate and record exactly that.
+    let staleRunning = null
+    if (agent?.status === 'running') {
+      const turn = turnState()
+      if (!turn.known) throw new Error('Rotation cannot verify whether a review turn is open (' + (turn.reason || 'unknown') + '); no review is interrupted.')
+      if (turn.open) throw new Error('Rotation waits for the open review turn to finish; no review is interrupted.')
+      staleRunning = { reason: 'stale-running', lastTurn: turn.lastTurn, lastStepBoundary: turn.lastStepBoundary, statusRunning: true }
+      warn('The Resident Agent reported "running" while no turn was open (last turn ' + String(turn.lastTurn) + '); rotating on the stale status.')
+    }
+    const before = facts || await rotationFacts(agent, value)
+    const state = kernel.readState().state
+    if (state.stateUnavailable) throw new Error('Resident identity state is unavailable; no rotation will be attempted.')
+    const from = state.residentSessionId || (agent ? String(agent.id) : null)
+    if (!from) {
+      // Nothing to retire: open the first session through the same bounded path.
+      const created = await ensureSession()
+      return { rotated: false, reason: 'no-resident-session', sessionId: String(created.agent.id), facts: before }
+    }
+    const at = now(), cause = typeof reason === 'string' && reason ? reason.slice(0, 200) : null
+    // Capture the retired session's route BEFORE it is disposed: the replacement must keep exactly
+    // the route this session ran. `desiredRoute` reads the session-owned selection (or Memory's
+    // fixed pin); last-request telemetry is a labelled secondary source only when no Agent is live.
+    const telemetry = routeFrom(state.execution?.actualRoute)
+    const captured = agent ? desiredRoute(agent) : null
+    const carriedRoute = captured ? { ...captured, basis: 'carried-from-rotation' } : telemetry ? { ...telemetry, basis: 'carried-last-request-telemetry' } : null
+    const routeUnavailable = carriedRoute ? null : agent ? 'resident-selection-unreadable' : 'no-live-agent-and-no-request-telemetry'
+    let retiredTitleApplied = false
+    if (agent) {
+      try {
+        const title = readAgentService(agent, 'sessionTitle', service('agentPresets'))
+        if (title?.rename && agent.ctx.reflect?.trace) { agent.ctx.reflect.trace(title).rename(agent.session, retiredResidentTitle(at, RESIDENT_TITLE)); retiredTitleApplied = true }
+      } catch (error) { warn('The retired Resident title could not be applied: ' + String(error?.message || error)) }
+    }
+    const abandoned = state.activeRun || null
+    // Persist the intent before closing the old Agent: a crash must not leave the schedule pointing
+    // at a session the state no longer owns, and must not lose the retired id.
+    kernel.write({
+      ...kernel.readState().state,
+      residentSessionId: null,
+      previousResidentSessionIds: [...new Set([...(state.previousResidentSessionIds || []), from])],
+      rotationCount: (Number.isSafeInteger(state.rotationCount) ? state.rotationCount : 0) + 1,
+      activeRun: null,
+      rotation: { at, from, to: null, trigger, reason: cause, phase: 'requested', retiredTitleApplied, staleRunning, carriedRoute: carriedRoute ? { provider: carriedRoute.provider, model: carriedRoute.model, ...(carriedRoute.reasoningEffort ? { reasoningEffort: carriedRoute.reasoningEffort } : {}), basis: carriedRoute.basis } : null, routeUnavailable },
+    })
+    if (abandoned) { try { kernel.recordFailure({ scope: 'uncommitted', message: 'Rotation abandoned unresolved review ' + String(abandoned.runId) + '; its handoff note records it and no review is replayed.' }) } catch {} }
+    const previousHandle = handle
+    handle = null;knownId = null;sessionPromise = null
+    if (previousHandle) { try { await previousHandle.dispose?.() } catch (error) { warn('The previous Resident Agent did not dispose cleanly: ' + String(error?.message || error)) } }
+    rotationPending = { from, at, trigger, reason: cause, carriedRoute, routeUnavailable }
+    let created
+    try { created = await ensureSession() } finally { rotationPending = null }
+    alive()
+    const to = String(created.agent.id), applied = kernel.readState().state.rotation?.carriedRoute || null
+    const handoff = rotationHandoff({ from, to, at, trigger, reason: cause, checkpoint: kernel.readState().state.checkpoint, inFlight: abandoned ? { runId: abandoned.runId, deltaId: abandoned.deltaId ?? null } : null, pressure: before.pressure?.available ? before.pressure : pressure, route: applied, routeUnavailable: kernel.readState().state.rotation?.routeUnavailable || null, staleRunning })
+    const latest = kernel.readState().state
+    kernel.write({ ...latest, rotation: { ...(latest.rotation || {}), from, to, at, trigger, reason: cause, phase: 'created', retiredTitleApplied, staleRunning, handoff, handoffDeliveredAt: null }, rotationFailures: null, retry: null })
+    rotationRequested = null
+    const schedule = await configure()
+    if (disposed) return { rotated: true, from, to, handoff, retiredTitleApplied, staleRunning, carriedRoute: applied, routeUnavailable: kernel.readState().state.rotation?.routeUnavailable || null, abandonedRunId: abandoned?.runId ?? null }
+    lastResult = { ran: false, reason: 'rotated', at: now(), rotation: { from, to, trigger, carriedRoute: applied } }
+    return { rotated: true, from, to, sessionId: to, trigger, reason: cause, handoff, retiredTitleApplied, staleRunning, carriedRoute: applied, routeUnavailable: kernel.readState().state.rotation?.routeUnavailable || null, abandonedRunId: abandoned?.runId ?? null, schedule, pressure: before.pressure, budget: before.budget, decision: before.decision }
+  }
+  /** Read-only rotation/context view for the card, the API and the operator. */
+  async function rotationView() {
+    const state = kernel.readState().state, value = current(), facts = await rotationFacts(liveAgent(), value)
+    return {
+      enabled: value.rotationEnabled,
+      configuredRatio: value.rotationContextRatio,
+      route: facts.route,
+      pressure: facts.pressure,
+      budget: facts.budget,
+      decision: facts.decision,
+      last: state.rotation || null,
+      carriedRoute: state.rotation?.carriedRoute || null,
+      routeUnavailable: state.rotation?.routeUnavailable || null,
+      staleRunning: state.rotation?.staleRunning || null,
+      requested: rotationRequested ? { ...rotationRequested } : null,
+      failures: state.rotationFailures || null,
+      escalation: state.rotationFailures && (state.rotationFailures.count || 0) >= (DEFAULT_DATA.policies.rotationEscalateAfter || 3) ? 'operator-action-required' : null,
+      staleMs: DEFAULT_DATA.policies.rotationStaleMs,
+      count: Number.isSafeInteger(state.rotationCount) ? state.rotationCount : 0,
+      previousSessionIds: state.previousResidentSessionIds || [],
+      handoffPending: !!(state.rotation?.handoff && !state.rotation.handoffDeliveredAt),
+      redelivery: pendingRedelivery ? { ...pendingRedelivery } : null,
+    }
   }
   function toolView() {
     const id = residentId(), agent = liveAgent()
@@ -357,7 +616,7 @@ export function createDreamingResident({ ctx, kernel, config = {}, getSettings, 
       startPromise = running
       try { return await running } finally { if (startPromise === running) startPromise = null }
     },
-    configure, adoptSchedule, tick, wake, residentStatus, toolView, modelView, scheduleView: () => schedule.view(), decide: () => kernel.decide().decision, lastResult: () => lastResult,
+    configure, adoptSchedule, tick, wake, residentStatus, toolView, modelView, rotate, rotationView, rotationFacts, sessionPressure, scheduleView: () => schedule.view(), decide: () => kernel.decide().decision, lastResult: () => lastResult,
     exposureFor({ sessionId, cwd } = {}) {
       const id = residentId(), normalize = value => { const path = typeof value === 'string' ? value.replace(/\\/g, '/').replace(/\/+$/, '') : '';return process.platform === 'win32' ? path.toLowerCase() : path }
       if (disposed || !id || sessionId !== id || !normalize(cwd) || normalize(cwd) !== normalize(paths.residentWorkspace)) return null

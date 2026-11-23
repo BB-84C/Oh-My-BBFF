@@ -68,6 +68,14 @@
       "importance": "advanced",
       "advancedGroup": "limits"
     },
+    "sessionReadMaxSizeMb": {
+      "importance": "advanced",
+      "advancedGroup": "limits"
+    },
+    "sessionReadMaxAgeDays": {
+      "importance": "advanced",
+      "advancedGroup": "limits"
+    },
     "snapshotMaxRoots": {
       "importance": "advanced",
       "advancedGroup": "performance"
@@ -109,7 +117,9 @@
     "snapshotMaxBytes": "settings.effect.snapshotMaxBytes",
     "cardPreferences": "settings.effect.cardPreferences",
     "settingsSectionOrder": "settings.effect.settingsSectionOrder",
-    "displayLabels": "settings.effect.displayLabels"
+    "displayLabels": "settings.effect.displayLabels",
+    "sessionReadMaxSizeMb": "settings.effect.sessionReadMaxSizeMb",
+    "sessionReadMaxAgeDays": "settings.effect.sessionReadMaxAgeDays"
   },
   "cardEffects": {
     "visible": "settings.effect.card.visible",

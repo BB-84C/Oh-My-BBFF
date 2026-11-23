@@ -17,6 +17,8 @@
  * stays fully functional on its own.
  */
 
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { TOOL_NAME_PATTERN, msg, isMessageRef, SDK_NAMESPACE } from './dsh-adapter.js'
 export { TOOL_NAME_PATTERN, msg, isMessageRef, SDK_NAMESPACE }
 
@@ -383,3 +385,106 @@ export function registerUiAdditions(ctx, additions = {}) {
     for (const section of sections) scope.effect(() => ui.registerSettingsSection(section), `bbff:${section.id}:section`)
   })
 }
+
+// ---------------------------------------------------------------------------
+// Session-read budget (owner decision, 2026-11-22): a session log larger than
+// 30 MB that has not been written for 7 days is never decoded by a first-party
+// plugin. DSH decompresses a whole compressed log even for a logical
+// `read(offset)`, so decoding historical logs saturates the host; skipping is
+// cheap (one `stat`) and the partial coverage is reported as a diagnostic with
+// the session id, its size and its age — never a silent gap.
+//
+// The thresholds are settings values with these defaults, not call-site
+// literals. A first-party plugin creates ONE budget per read surface with its
+// own settings resolver and asks it before opening a log.
+// ---------------------------------------------------------------------------
+/** Diagnostic code a consumer records instead of decoding a log. */
+export const SESSION_READ_SKIP_CODE = 'session-read-skipped'
+/** Dictionary key (in the consumer's namespace) for the diagnostic reason. */
+export const SESSION_READ_SKIP_REASON_KEY = 'diag.sessionReadSkipped'
+/** Owner defaults: > 30 MiB AND untouched for 7 days. */
+export const SESSION_READ_LIMIT_DEFAULTS = Object.freeze({ maxSizeMb: 30, maxAgeDays: 7 })
+/** Settings bounds for the two thresholds. */
+export const SESSION_READ_LIMIT_RANGES = Object.freeze({ maxSizeMb: Object.freeze({ min: 1, max: 4096 }), maxAgeDays: Object.freeze({ min: 1, max: 3650 }) })
+/** Persisted session log filenames, newest first. */
+export const SESSION_LOG_FILENAMES = Object.freeze(['session.v4.jsonl.zstd', 'session.v4.jsonl'])
+const SESSION_MIB = 1024 * 1024
+const SESSION_DAY_MS = 24 * 60 * 60 * 1000
+/** Resolve the two thresholds from settings, clamped into their ranges. */
+export function sessionReadLimits(settings = {}) {
+  // Accept both the bare contract keys and the settings names a package exposes.
+  const pick = (key, settingKey) => {
+    const source = settings || {}
+    const raw = Object.hasOwn(source, key) ? source[key] : Object.hasOwn(source, settingKey) ? source[settingKey] : NaN
+    const value = Number(raw), range = SESSION_READ_LIMIT_RANGES[key]
+    return Number.isFinite(value) ? Math.min(range.max, Math.max(range.min, value)) : SESSION_READ_LIMIT_DEFAULTS[key]
+  }
+  const maxSizeMb = pick('maxSizeMb', 'sessionReadMaxSizeMb'), maxAgeDays = pick('maxAgeDays', 'sessionReadMaxAgeDays')
+  return Object.freeze({ maxSizeMb, maxAgeDays, maxSizeBytes: Math.round(maxSizeMb * SESSION_MIB), maxAgeMs: Math.round(maxAgeDays * SESSION_DAY_MS) })
+}
+/** Owner rule: skip only when BOTH hold — larger than the size limit AND older than the age limit. */
+export function skippableSessionLog(stats = {}, now = Date.now(), limits = sessionReadLimits()) {
+  const sizeBytes = stats && stats.sizeBytes, mtimeMs = stats && stats.mtimeMs
+  return Number.isFinite(sizeBytes) && Number.isFinite(mtimeMs) && sizeBytes > limits.maxSizeBytes && now - mtimeMs > limits.maxAgeMs
+}
+/** Interpolation params for SESSION_READ_SKIP_REASON_KEY. */
+export function sessionReadSkipParams(verdict = {}) {
+  const stats = verdict.stats || {}, limits = verdict.limits || sessionReadLimits()
+  return {
+    sessionId: String(verdict.sessionId || ''),
+    sizeMb: Math.round(Number(stats.sizeBytes || 0) / SESSION_MIB),
+    ageDays: Math.floor(Math.max(0, Number(verdict.ageMs || 0)) / SESSION_DAY_MS),
+    maxSizeMb: limits.maxSizeMb,
+    maxAgeDays: limits.maxAgeDays,
+  }
+}
+/**
+ * Stat a persisted session log without opening it: `$DSH_HOME/sessions/<bucket>/<id>/<file>`.
+ * Returns `null` when the session is not stored (a live session has no cold log).
+ */
+export async function statSessionLog(sessionsRoot, sessionId) {
+  if (typeof sessionsRoot !== 'string' || !sessionsRoot) return null
+  if (typeof sessionId !== 'string' || !sessionId || sessionId.includes('/') || sessionId.includes('\\') || sessionId.includes('..')) return null
+  let buckets
+  try { buckets = await fs.readdir(sessionsRoot, { withFileTypes: true }) } catch { return null }
+  for (const bucket of buckets) {
+    if (!bucket.isDirectory()) continue
+    for (const filename of SESSION_LOG_FILENAMES) {
+      const file = path.join(sessionsRoot, bucket.name, sessionId, filename)
+      try {
+        const info = await fs.stat(file)
+        if (info.isFile()) return { sizeBytes: info.size, mtimeMs: info.mtimeMs, path: file }
+      } catch {}
+    }
+  }
+  return null
+}
+/**
+ * One read-surface budget: stat each session at most once per `cacheMs`, never
+ * decode. `exempt` covers the session the agent runs in and explicit user actions.
+ */
+export function createSessionReadBudget({ sessionsRoot, getSettings = () => ({}), now = Date.now, cacheMs = 30000, stat = statSessionLog } = {}) {
+  const cache = new Map()
+  const settingsOf = () => (typeof getSettings === 'function' ? getSettings() || {} : {})
+  async function check(sessionId, { exempt = false } = {}) {
+    const limits = sessionReadLimits(settingsOf())
+    if (exempt) return { skipped: false, exempt: true, sessionId, limits }
+    const id = String(sessionId || '')
+    const cached = cache.get(id)
+    if (cached && now() - cached.at < cacheMs) return { ...cached.verdict, limits, cached: true }
+    const stats = await stat(sessionsRoot, id)
+    const ageMs = stats ? Math.max(0, now() - stats.mtimeMs) : 0
+    const skipped = !!stats && skippableSessionLog(stats, now(), limits)
+    const verdict = Object.freeze({ skipped, stats, sessionId: id, ageMs, limits, ...(skipped ? { code: SESSION_READ_SKIP_CODE, reasonKey: SESSION_READ_SKIP_REASON_KEY } : {}) })
+    cache.set(id, { at: now(), verdict })
+    while (cache.size > 4096) cache.delete(cache.keys().next().value)
+    return verdict
+  }
+  return Object.freeze({
+    check,
+    limits: () => sessionReadLimits(settingsOf()),
+    /** Drop cached stats (tests, settings changes); never touches session logs. */
+    reset: () => cache.clear(),
+  })
+}
+

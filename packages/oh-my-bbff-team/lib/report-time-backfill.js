@@ -4,6 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import zlib from 'node:zlib'
 import { assistantMessageFacts, sessionEventFacts } from './dsh-adapter.js'
+import { SESSION_READ_SKIP_CODE, sessionReadLimits, sessionReadSkipParams, skippableSessionLog } from './bbff-contract.js'
 const MARKER='report-time-backfill-v1'
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const ISO=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
@@ -15,8 +16,17 @@ function decode(file){
   }
   return raw.toString('utf8')
 }
-export function createReportTimeBackfill({reports,sessionRoot,logger,sessionRootFallback=null}) {
+export function createReportTimeBackfill({reports,sessionRoot,logger,sessionRootFallback=null,getSettings=()=>({})}) {
   let status={status:'not-applicable',reason:'No durable report checkpoint store is available',rows:[]}
+  /** Sync form of the family session-read budget: this migration runs unattended, so a large
+   *  log that has not been written for the age limit is skipped, never decoded. */
+  const budgetSkip=(file)=>{
+    let info
+    try{info=statSync(file)}catch{return null}
+    const limits=sessionReadLimits(getSettings()||{}),now=Date.now()
+    if(!skippableSessionLog({sizeBytes:info.size,mtimeMs:info.mtimeMs},now,limits))return null
+    return{code:SESSION_READ_SKIP_CODE,sizeBytes:info.size,ageMs:Math.max(0,now-info.mtimeMs),maxSizeMb:limits.maxSizeMb,maxAgeDays:limits.maxAgeDays}
+  }
   const findStore=(id)=>{
     const roots=[sessionRoot,sessionRootFallback].filter(root=>typeof root==='string'&&root)
     for(const root of roots){
@@ -65,6 +75,10 @@ export function createReportTimeBackfill({reports,sessionRoot,logger,sessionRoot
         if(!UUID.test(id)){issues.push({id,reason:'not a native session identity'});reportRows.push({id,decision:'skipped',reason:'not a native session identity'});continue}
         const file=findStore(id)
         if(!file){issues.push({id,reason:'no persisted session store was found for this member'});reportRows.push({id,decision:'skipped',reason:'no persisted session store'});continue}
+        // Owner session-read budget: the row is recorded as skipped (id, size, age) instead of
+        // being decoded; the migration never opens a log it has no business reading.
+        const overBudget=budgetSkip(file)
+        if(overBudget){issues.push({id,...overBudget});reportRows.push({id,decision:'skipped',reason:overBudget.code,sessionFile:file,sizeBytes:overBudget.sizeBytes,ageMs:overBudget.ageMs});const params=sessionReadSkipParams({sessionId:id,stats:{sizeBytes:overBudget.sizeBytes},ageMs:overBudget.ageMs,limits:{maxSizeMb:overBudget.maxSizeMb,maxAgeDays:overBudget.maxAgeDays}});logger?.warn?.('Team report time backfill skipped '+id+' ('+params.sizeMb+' MB, '+params.ageDays+' days): '+overBudget.code);continue}
         const matched=matchEvent(file,text)
         if(matched.match){
           updates.push({id,timestamp:new Date(matched.match.time).toISOString(),source:{timeSource:'member-session-event',eventSeq:matched.match.seq,eventTime:new Date(matched.match.time).toISOString(),sessionFile:file,matchedChars:text.length,originalTextChars:matched.match.originalTextChars,backfilledAt:new Date().toISOString()},report:{truncated:matched.match.originalTextChars>text.length,totalChars:matched.match.originalTextChars}})

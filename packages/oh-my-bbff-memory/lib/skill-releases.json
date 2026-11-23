@@ -3,8 +3,8 @@
   "generatedBy": "scripts/generate-skill.mjs",
   "template": "lib/prompt-defaults.json#skill",
   "current": {
-    "version": "1.0.0",
-    "packagePath": "this-package/oh-my-bbff-memory@1.0.0",
+    "version": "1.0.4",
+    "packagePath": "this-package/oh-my-bbff-memory@1.0.4",
     "member": "package/skills/update-memory/SKILL.md",
     "sha256": "f9d28fed522b00820831844c70f2a0e5290328fd9a018725a16a9cc3d45db4dd",
     "bytes": 4462,
@@ -233,6 +233,38 @@
     {
       "version": "1.0.0",
       "packagePath": "this-package/oh-my-bbff-memory@1.0.0",
+      "member": "package/skills/update-memory/SKILL.md",
+      "sha256": "f9d28fed522b00820831844c70f2a0e5290328fd9a018725a16a9cc3d45db4dd",
+      "bytes": 4462,
+      "origin": "current-pack-generated-from-prompt-defaults"
+    },
+    {
+      "version": "1.0.1",
+      "packagePath": "this-package/oh-my-bbff-memory@1.0.1",
+      "member": "package/skills/update-memory/SKILL.md",
+      "sha256": "f9d28fed522b00820831844c70f2a0e5290328fd9a018725a16a9cc3d45db4dd",
+      "bytes": 4462,
+      "origin": "current-pack-generated-from-prompt-defaults"
+    },
+    {
+      "version": "1.0.2",
+      "packagePath": "this-package/oh-my-bbff-memory@1.0.2",
+      "member": "package/skills/update-memory/SKILL.md",
+      "sha256": "f9d28fed522b00820831844c70f2a0e5290328fd9a018725a16a9cc3d45db4dd",
+      "bytes": 4462,
+      "origin": "current-pack-generated-from-prompt-defaults"
+    },
+    {
+      "version": "1.0.3",
+      "packagePath": "this-package/oh-my-bbff-memory@1.0.3",
+      "member": "package/skills/update-memory/SKILL.md",
+      "sha256": "f9d28fed522b00820831844c70f2a0e5290328fd9a018725a16a9cc3d45db4dd",
+      "bytes": 4462,
+      "origin": "current-pack-generated-from-prompt-defaults"
+    },
+    {
+      "version": "1.0.4",
+      "packagePath": "this-package/oh-my-bbff-memory@1.0.4",
       "member": "package/skills/update-memory/SKILL.md",
       "sha256": "f9d28fed522b00820831844c70f2a0e5290328fd9a018725a16a9cc3d45db4dd",
       "bytes": 4462,

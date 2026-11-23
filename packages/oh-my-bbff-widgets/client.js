@@ -886,7 +886,11 @@ window.__ModuleLoader__.load({
         t: translate,
         msg: (key, params) => messageRef(key, params, namespace),
         resolveText: (value, params) => resolveHostValue(value, { t: translate, bind: bindNamespace, params }),
-        SettingsLayout: (props) => renderSettingsLayout(layoutProps(props)),
+        // Render the stateful component, not `renderSettingsLayout` directly: the
+        // component owns `open`/`onOpenChange`, and the layout's summary calls
+        // `props.onOpenChange(...)`. Calling the renderer here left both undefined,
+        // so every member module's advanced block was a permanent no-op (issue #2).
+        SettingsLayout: (props) => h(SettingsLayout, layoutProps(props)),
         SettingHelp: (props) => h(SettingHelp, helpProps(props)),
       })
       KIT_CACHE.set(key, kit)
@@ -1998,6 +2002,11 @@ window.__ModuleLoader__.load({
         open ? h('span', { className: 'gb-help-popover', role: 'tooltip', id: id.current, 'data-setting-effect': props.field?.path }, explanation.text) : null)
     }
 
+    /** Host display notes are message references: render text, never a reference object. */
+    function mcpCompletenessRow(value) {
+      return value ? h('div', { className: 'gb-hint', 'data-mcp-completeness-note': 'true' }, hostText(value)) : null
+    }
+
     /** "Language files" block: the user folder, template export and live reload. */
     function LanguageFilesBlock() {
       const t = rootT
@@ -3105,7 +3114,7 @@ window.__ModuleLoader__.load({
           exposureReady ? h('span', { className: 'gb-badge', 'data-exposure-count': 'mcp' }, countLabel(mcpList)) : null),
         h('div', { className: 'gb-card-body' },
           exposureBody(mcpList.map((entry) => mcpRow(entry)), t('mcpEmpty')),
-          exposureData?.display?.mcpCompletenessNote ? h('div', { className: 'gb-hint', 'data-mcp-completeness-note': 'true' }, exposureData.display.mcpCompletenessNote) : null))
+          mcpCompletenessRow(exposureData?.display?.mcpCompletenessNote)))
 
       // A card with no data keeps its layout slot without rendering anything.
       const cardElements = {

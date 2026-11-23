@@ -34,6 +34,15 @@ function normalize(raw,{maxSources,maxPaths}){
 }
 const empty=()=>({version:1,entries:[],tombstones:[],persistentDiagnostics:[]})
 const sortedRows=rows=>[...rows].sort((a,b)=>key(a).localeCompare(key(b)))
+// Exact byte accounting for the incremental admission path below. A row occupies
+// exactly `rowText(row)` inside `serialize()`, and an array of n rows adds
+// `frameBytes(n)` brackets/separators around the sum of its rows' bytes. Deriving
+// a document's size from these parts is byte-identical to serializing it, which
+// the reference test asserts against the previous whole-document algorithm.
+const ROW_INDENT='    '
+const rowText=row=>ROW_INDENT+JSON.stringify(row,null,2).replaceAll('\n','\n'+ROW_INDENT)
+const rowBytes=row=>Buffer.byteLength(rowText(row),'utf8')
+const frameBytes=count=>count===0?2:6+2*(count-1)
 function merge(document,records,tombstoneWrites,limits,{live=false}={}){
   const entries=new Map(document.entries.map(row=>[key(row),clone(row)])),tombstones=new Map(document.tombstones.map(row=>[key(row),clone(row)]))
   for(const row of tombstoneWrites){const id=key(row),old=tombstones.get(id);if(!old||row.forgottenAt>old.forgottenAt)tombstones.set(id,{...row});entries.delete(id)}
@@ -66,6 +75,67 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
   const index=doc=>{fingerprints.clear();for(const row of doc.entries)fingerprints.set(key(row),fingerprint(row))}
   const serialize=doc=>JSON.stringify(doc,null,2)+'\n'
   const full=doc=>doc.entries.length+doc.tombstones.length>maxRows||Buffer.byteLength(serialize(doc),'utf8')>maxBytes
+  // ---------------------------------------------------------------------------
+  // Incremental admission accounting (community issue #1).
+  //
+  // `observe()` must decide, per accepted observation, whether `document` unioned
+  // with every pending row still fits `maxRows`/`maxBytes`. The previous code built
+  // that union and serialized it for every observation, i.e. O(observations x
+  // entries) cloning/sorting/serializing on the host thread. The same decision is
+  // available from exact per-row byte deltas:
+  //
+  //   bytes(document + pending)
+  //     = bytes(document)
+  //       - bytes(rows the pending set replaces) + bytes(rows it produces)
+  //       - bytes(tombstones it clears)
+  //       + framing delta of the entry/tombstone count change
+  //
+  // `pendingView` tracks those deltas; `syncDocument()` rebuilds it from scratch
+  // whenever `document` changes (initialize, union commit, import, forget,
+  // reconcile), so the per-observation cost is bounded by two rows, not by the
+  // ledger size. `snapshot()` and `flush()` still union with the real `merge()`.
+  // ---------------------------------------------------------------------------
+  let documentEntries=new Map(),documentTombstones=new Map(),documentBytes=0
+  let pendingView={documentBytes:0,entries:0,tombstones:0,deltaBytes:0,added:0,cleared:0}
+  const contributions=new Map()
+  /** How one pending row lands in the merged view: effective bytes, the document
+   * row bytes it replaces, the tombstone bytes it clears, or `fenced` (invisible). */
+  function pendingContribution(id,row){
+    const tombstone=documentTombstones.get(id)
+    if(tombstone&&row.lastSeenAt<=tombstone.forgottenAt)return {fenced:true,bytes:0,replaced:0,cleared:0}
+    const base=documentEntries.get(id)
+    const merged=base?merge(empty(),[base,row],[],limits,{live:true}).document.entries[0]:row
+    return {fenced:false,bytes:rowBytes(merged),replaced:base?rowBytes(base):0,cleared:tombstone?rowBytes(tombstone):0}
+  }
+  function addContribution(state,id,part){
+    if(!part||part.fenced)return state
+    state.deltaBytes+=part.bytes-part.replaced-part.cleared
+    if(!documentEntries.has(id))state.added++
+    if(part.cleared)state.cleared++
+    return state
+  }
+  function dropContribution(state,id,part){
+    if(!part||part.fenced)return state
+    state.deltaBytes-=part.bytes-part.replaced-part.cleared
+    if(!documentEntries.has(id))state.added--
+    if(part.cleared)state.cleared--
+    return state
+  }
+  /** Exact size/row count `full()` would measure for `document` plus the pending set. */
+  function viewTotals(state){
+    const entries=state.entries+state.added,tombstones=state.tombstones-state.cleared
+    return {ok:entries+tombstones<=maxRows&&state.documentBytes+state.deltaBytes+frameBytes(entries)-frameBytes(state.entries)+frameBytes(tombstones)-frameBytes(state.tombstones)<=maxBytes}
+  }
+  function syncDocument(){
+    documentEntries=new Map();documentTombstones=new Map()
+    for(const row of document.entries)documentEntries.set(key(row),row)
+    for(const row of document.tombstones)documentTombstones.set(key(row),row)
+    documentBytes=Buffer.byteLength(serialize(document),'utf8')
+    contributions.clear()
+    pendingView={documentBytes,entries:document.entries.length,tombstones:document.tombstones.length,deltaBytes:0,added:0,cleared:0}
+    for(const [id,row]of pending){const part=pendingContribution(id,row);contributions.set(id,part);addContribution(pendingView,id,part)}
+  }
+  syncDocument()
   function signal(){snapshotCache=null;revision++;try{onChange()}catch{}}
   function report(code,reason,extra){diagnostics.set(code,diagnostic(code,reason,extra));signal()}
   function pendingDiagnostic(){
@@ -161,7 +231,7 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
     if(disposed)return snapshot()
     if(initialized)return snapshot()
     if(initializing)return initializing
-    initializing=(async()=>{try{document=await readDocument();index(document);initialized=true;diagnostics.delete('ledger-storage-error');diagnostics.delete('ledger-pending')}catch{report('ledger-storage-error','Catalog ledger could not be read; existing facts were preserved.')}finally{initializing=null;signal()}if(!reconcileTimer&&reconcileMs>0&&!disposed){reconcileTimer=setInterval(()=>{void reconcile()},reconcileMs);reconcileTimer.unref?.()}return snapshot()})()
+    initializing=(async()=>{try{document=await readDocument();index(document);syncDocument();initialized=true;diagnostics.delete('ledger-storage-error');diagnostics.delete('ledger-pending')}catch{report('ledger-storage-error','Catalog ledger could not be read; existing facts were preserved.')}finally{initializing=null;signal()}if(!reconcileTimer&&reconcileMs>0&&!disposed){reconcileTimer=setInterval(()=>{void reconcile()},reconcileMs);reconcileTimer.unref?.()}return snapshot()})()
     return initializing
   }
   function schedule(){
@@ -186,10 +256,12 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
       // nor schedules a write; timestamps alone do not force durability work.
       if(prior?fingerprint(prior)===nextFingerprint:fingerprints.get(id)===nextFingerprint){unchanged++;continue}
       if(prior)row=merge(empty(),[prior,row],[],limits,{live:true}).document.entries[0]
-      const proposal=new Map(pending);proposal.set(id,row)
-      const next=merge(document,[...proposal.values()],[],limits,{live:true}).document
-      if(full(next)){rejected++;report('ledger-full','Catalog is full; new names are refused and no existing name is evicted.');continue}
-      pending.set(id,row);fingerprints.set(id,fingerprint(row));accepted++;counts.accepted++
+      // Admission is the exact `full()` verdict for `document` unioned with the whole
+      // pending set, computed from that set's byte deltas (see pendingView above).
+      const previous=contributions.get(id),nextContribution=pendingContribution(id,row)
+      const candidate=dropContribution(addContribution({...pendingView},id,nextContribution),id,previous)
+      if(!viewTotals(candidate).ok){rejected++;report('ledger-full','Catalog is full; new names are refused and no existing name is evicted.');continue}
+      pending.set(id,row);fingerprints.set(id,fingerprint(row));contributions.set(id,nextContribution);pendingView=candidate;accepted++;counts.accepted++
     }
     if(!accepted){counts.unchanged+=unchanged;return {accepted:0,rejected,unchanged}}
     pendingSince||=now()
@@ -211,7 +283,7 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
           // Cheap change test first: only clone/serialize/atomic-write when the
           // merged document actually differs from what is on disk.
           if(merged.changed>0)await persist(merged.document)
-          document=merged.document;index(document);initialized=true;diagnostics.delete('ledger-pending')
+          document=merged.document;index(document);syncDocument();initialized=true;diagnostics.delete('ledger-pending')
           for(const [id,row]of batch)if(pending.get(id)===row)pending.delete(id)
           return {ok:true,changed:merged.changed>0}
         })
@@ -234,7 +306,7 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
         const before=new Set(buffered.entries.map(key))
         if(!isCurrent())return {ok:false,code:'invalid-module'}
         if(serialize(merged.document)!==serialize(latest))await persist(merged.document,{beforeCommit:()=>isCurrent()?undefined:'INVALID_MODULE'})
-        document=merged.document;index(document);initialized=true;diagnostics.delete('ledger-pending');for(const [id,row]of batch)if(pending.get(id)===row)pending.delete(id);pendingDiagnostic();signal()
+        document=merged.document;index(document);syncDocument();initialized=true;diagnostics.delete('ledger-pending');for(const [id,row]of batch)if(pending.get(id)===row)pending.delete(id);pendingDiagnostic();signal()
         const imported=rows.filter(row=>!before.has(key(row))&&document.entries.some(item=>key(item)===key(row))).length
         return {ok:true,imported,merged:Math.max(0,merged.changed-imported),unchanged:rows.length-merged.changed,revision:String(revision)}
       })}catch(error){if(error.code==='INVALID_MODULE')return {ok:false,code:'invalid-module'};report('ledger-storage-error','Catalog import failed without durable acknowledgment.');return {ok:false,code:'storage-error'}}
@@ -251,7 +323,7 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
         const forgottenAt=timestamp(now()),merged=merge(buffered,[],[{kind,name,forgottenAt}],limits)
         if(full(merged.document))return {ok:false,code:'ledger-full'}
         const blocked=canForget();if(blocked)return {ok:false,code:blocked}
-        await persist(merged.document,{beforeCommit:()=>canForget()});document=merged.document;index(document);initialized=true;diagnostics.delete('ledger-pending')
+        await persist(merged.document,{beforeCommit:()=>canForget()});document=merged.document;index(document);syncDocument();initialized=true;diagnostics.delete('ledger-pending')
         for(const [id,row]of batch)if(pending.get(id)===row)pending.delete(id)
         for(const [id,row]of pending)if(id===kind+'\0'+name&&row.lastSeenAt<=forgottenAt)pending.delete(id)
         pendingDiagnostic();signal();return {ok:true,changed:true,revision:String(revision)}
@@ -260,7 +332,7 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
   }
   async function reconcile(){
     if(disposed)return snapshot()
-    return exclusive(async()=>{await initialize();try{const stat=await fs.stat(file),current=stat.mtimeMs+':'+stat.size;if(current!==signature){document=await readDocument();index(document);signal()}}catch(error){if(error.code!=='ENOENT')report('ledger-storage-error','Catalog reconciliation failed; last-success metadata retained.')}return snapshot()})
+    return exclusive(async()=>{await initialize();try{const stat=await fs.stat(file),current=stat.mtimeMs+':'+stat.size;if(current!==signature){document=await readDocument();index(document);syncDocument();signal()}}catch(error){if(error.code!=='ENOENT')report('ledger-storage-error','Catalog reconciliation failed; last-success metadata retained.')}return snapshot()})
   }
   async function dispose(){
     if(disposed)return

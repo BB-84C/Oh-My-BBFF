@@ -1,6 +1,6 @@
 {
   "name": "oh-my-bbff-memory",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "engines": { "dsh": ">=0.2.2-rc.2" },
   "type": "module",
   "description": "Oh-My-BBFF Memory — Markdown memory for DeepSeek Harness: full-resident or routed injection, memory tools, session toggles, and an in-process Dreaming Resident.",

@@ -5,6 +5,7 @@
   },
   "ui": {
     "diag.mcp-tool-name.server-attribution-uses-an-unobserved-rule-namespace": "Server attribution uses an unobserved rule namespace hint.",
+    "diag.sessionReadSkipped": "Session log is {sizeMb} MB and has not changed for {ageDays} days, so it was not decoded (session-read budget: {maxSizeMb} MB / {maxAgeDays} days). Session: {sessionId}",
     "diag.mcp-tool-name.malformed-mcp-public-tool-name": "Malformed MCP public tool name.",
     "diag.mcp-tool-name.server-attribution-is-an-uncorroborated-naming-fallb": "Server attribution is an uncorroborated naming fallback.",
     "diag.mcp-section-name.malformed-mcp-section-identity": "Malformed MCP section identity.",

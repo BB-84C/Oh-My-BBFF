@@ -1,5 +1,10 @@
 # Changelog — Oh-My-BBFF Team
 
+## 1.0.2 — session-read budget
+
+- Cold-session hydration obeys the family session-read budget: a member log larger than 30 MB and untouched for 7 days is not decoded. The member fact records `skipped: {code, sizeBytes, ageMs, maxSizeMb, maxAgeDays}` instead of queuing a multi-tens-of-MB decode, and the same persistence revision is never retried.
+- The team ledger gains a structured `skipped` column (schema v2); an older ledger cache rebuilds itself once, which is safe because the session logs remain the source of truth.
+
 ## 1.0.1
 
 - The session-mode switch on the Team card now really switches. Team leader turns native Agent Teams on for the conversation and Orchestrator turns it off, so a conversation that started in one mode can move to the other without a restart. Auto and Off leave the native selection as it is (Off still turns the Team doctrine off). Before, the switch only stored a BBFF preference and the card honestly showed "Effective: Orchestrator".

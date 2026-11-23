@@ -54,6 +54,17 @@
       },
       "versions": [
         {
+          "version": "1.0.2",
+          "publishTimestamp": 1795458261,
+          "source": {
+            "type": "npm",
+            "registry": "https://registry.npmjs.org/"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.2"
+          }
+        },
+        {
           "version": "1.0.1",
           "publishTimestamp": 1794801475,
           "source": {
@@ -106,6 +117,17 @@
       },
       "versions": [
         {
+          "version": "1.0.2",
+          "publishTimestamp": 1795458185,
+          "source": {
+            "type": "npm",
+            "registry": "https://registry.npmjs.org/"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.2"
+          }
+        },
+        {
           "version": "1.0.0",
           "publishTimestamp": 1794705069,
           "source": {
@@ -147,8 +169,19 @@
       },
       "versions": [
         {
+          "version": "1.0.2",
+          "publishTimestamp": 1795458082,
+          "source": {
+            "type": "npm",
+            "registry": "https://registry.npmjs.org/"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.2"
+          }
+        },
+        {
           "version": "1.0.1",
-          "publishTimestamp": 1794801380,
+          "publishTimestamp": 1794801379,
           "source": {
             "type": "npm",
             "registry": "https://registry.npmjs.org/"
@@ -198,6 +231,17 @@
         ]
       },
       "versions": [
+        {
+          "version": "1.0.4",
+          "publishTimestamp": 1795458106,
+          "source": {
+            "type": "npm",
+            "registry": "https://registry.npmjs.org/"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.2"
+          }
+        },
         {
           "version": "1.0.0",
           "publishTimestamp": 1794705047,
