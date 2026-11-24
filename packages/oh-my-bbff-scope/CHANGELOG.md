@@ -1,5 +1,9 @@
 # Changelog — Oh-My-BBFF Scope
 
+## 1.0.1 — Shared SDK contract alignment
+
+- Aligns the vendored contract with the current Oh-My-BBFF SDK. Workspace rules, settings, and enforcement are unchanged.
+
 ## 1.0.0 — first public release
 
 - First public release of Oh-My-BBFF Scope. Family-wide version reset to 1.0.0.

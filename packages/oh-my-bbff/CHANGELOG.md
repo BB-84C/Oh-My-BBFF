@@ -1,5 +1,11 @@
 # Changelog — oh-my-bbff
 
+## 1.0.3 — Widgets 1.0.4, Scope 1.0.1
+
+- **Widgets 1.0.4:** the Scope panel builds its catalog from cached attributions instead of re-deriving one per row, and a diagnostics-only ledger update no longer rebuilds the whole catalog view. Opening the panel with a large tool catalog is noticeably faster (the measured collect dropped from about 22 ms to under 4 ms), and repeated rows are no longer decoded one by one. Panel content is unchanged.
+- **Scope 1.0.1:** its vendored copy of the family contract was brought up to the current SDK release. Behaviour is unchanged.
+- The other members stay at their current versions: Team 1.0.2, Memory 1.0.4, SDK 1.0.1 and Superpowers 1.0.0. Requires DeepSeek Harness 0.2.2 or newer. The bundle adds no tools, cards or settings of its own.
+
 ## 1.0.2 — Widgets 1.0.2, Team 1.0.2, Memory 1.0.4, SDK 1.0.1
 
 - **Widgets 1.0.2:** the sidebar no longer slows down as the session catalog grows (the catalog ledger decides admission from per-row deltas instead of rebuilding the whole document on every observation), the MCP completeness note no longer crashes the panel, and the advanced settings sections (高级设置) open again for Team, Scope and Memory.

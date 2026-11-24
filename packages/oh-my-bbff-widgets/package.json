@@ -1,6 +1,6 @@
 {
   "name": "oh-my-bbff-widgets",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "engines": {
     "dsh": ">=0.2.2-rc.2"
   },

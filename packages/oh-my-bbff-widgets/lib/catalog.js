@@ -21,10 +21,32 @@ export function createCatalogProvider({dir,getModules=()=>[],readDiscovery,now=(
   const ledger=createCatalogLedger({...ledgerOptions,dir,now,onChange:()=>changed('ledger')})
   const compatible=id=>modules.find(row=>row.id===id&&row.compatible!==false)
   const allFacts=()=>[...slices.values()].flatMap(slice=>slice.facts||[])
-  const knownServers=()=>sorted([...ledger.snapshot().entries.filter(row=>row.kind==='mcp').map(row=>row.name),...allFacts().filter(row=>row.kind==='mcp').map(row=>row.name)])
+  // The server list and every tool attribution depend only on (a) the ledger's change token and
+  // (b) the current fact slices. Both are cheap counters, so one build computes each server list
+  // once and every attribution is a table lookup - never a per-call snapshot() merge plus a
+  // full fact flatten (that shape was cubic in entries x facts).
+  let factsRevision=0,serverViewCache=null,serverViewKey=null
+  function serverView(){
+    const key=ledger.revision()+':'+factsRevision
+    if(serverViewCache&&serverViewKey===key)return serverViewCache
+    const view={key,servers:sorted([...ledger.snapshot().entries.filter(row=>row.kind==='mcp').map(row=>row.name),...allFacts().filter(row=>row.kind==='mcp').map(row=>row.name)]),attributions:new Map()}
+    serverViewCache=view;serverViewKey=key
+    return view
+  }
+  const knownServers=()=>serverView().servers
   function attributeTool(name,options={}){
-    const decoded=parseMcpToolName(name,knownServers(),options?.serverHints||[])
-    return decoded.value||freeze({basis:'none',uncertain:false,candidates:[],ambiguous:false,diagnostics:decoded.diagnostics})
+    const hints=options?.serverHints||[],view=serverView()
+    // Hints are part of the cache key, not a reason to skip the cache: Scope attributes every row
+    // with its disabled-server set on each collect, so an uncached decode here would put the
+    // per-call cost straight back. Hint order cannot change the result (the adapter matches and
+    // sorts candidates itself), so the key uses the sorted hints.
+    const key=hints.length?name+'\0'+sorted(hints).join('\0'):name
+    const cached=view.attributions.get(key)
+    if(cached!==undefined)return cached
+    const decoded=parseMcpToolName(name,view.servers,hints)
+    const value=decoded.value||freeze({basis:'none',uncertain:false,candidates:[],ambiguous:false,diagnostics:decoded.diagnostics})
+    view.attributions.set(key,value)
+    return value
   }
   function diagnostics(){
     const rows=[...discoveryDiagnostics,...ledger.snapshot().diagnostics,...[...slices.values()].flatMap(slice=>slice.diagnostics||[])]
@@ -102,6 +124,7 @@ export function createCatalogProvider({dir,getModules=()=>[],readDiscovery,now=(
           if(result.authoritative===true)slices.delete(id)
           else slices.set(id,{...old,complete:false,facts:old.facts.map(fact=>({...fact,stale:true})),diagnostics:[diagnostic('source-unconfirmed','Source coverage could not be reconfirmed; last-success data retained.')]})
         }
+        factsRevision++
         defaultViewId=result.defaultViewId;maskCoverageComplete=result.authoritative===true;packageVersions=result.packageVersions||{};nativeResidueProven=result.nativeResidueProven===true
         privateViews=result.privateViews||new Map();discoveryDiagnostics=result.diagnostics||[]
         if(result.adapterEvidence){const report=selfCheck(result.adapterEvidence);discoveryDiagnostics.push(...report.diagnostics)}
@@ -116,7 +139,7 @@ export function createCatalogProvider({dir,getModules=()=>[],readDiscovery,now=(
         }
         if(observations.length)ledger.observe(observations)
         changed('tools')
-      }catch{initial=false;discoveryDiagnostics=[diagnostic('discovery-error','Catalog discovery failed; previous successful sources are retained.')];for(const [id,old]of slices)slices.set(id,{...old,complete:false,facts:old.facts.map(fact=>({...fact,stale:true}))});changed('diagnostics')}
+      }catch{initial=false;factsRevision++;discoveryDiagnostics=[diagnostic('discovery-error','Catalog discovery failed; previous successful sources are retained.')];for(const [id,old]of slices)slices.set(id,{...old,complete:false,facts:old.facts.map(fact=>({...fact,stale:true}))});changed('diagnostics')}
       refreshTiming={...refreshTiming,state:discoveryDiagnostics.some(row=>row.code==='discovery-error')?'error':'ready',reason:discoveryDiagnostics.some(row=>row.code==='discovery-error')?'Catalog discovery failed; last-success metadata is retained.':'',completedAt:Date.now(),durationMs:performance.now()-started}
       return snapshot()
     })().finally(()=>{refreshing=null;if(rerun&&!disposed){rerun=false;schedule()}})
@@ -172,11 +195,14 @@ export function createCatalogProvider({dir,getModules=()=>[],readDiscovery,now=(
     const sectionFacts=selected.filter(slice=>['sections','mcp'].includes(slice.part)).flatMap(slice=>slice.facts||[])
     const liveFacts=(live?.tools||[]).map(row=>({kind:'tool',name:row.name,description:row.description,sources:[row.sessionLocal?'session-local':viewId==='host'?'host':'preset:'+(presetId||'current')],sessionLocal:row.sessionLocal===true,stale:live.stale===true}))
     const facts=[...toolFacts,...sectionFacts,...skillFacts,...liveFacts],keys=new Set(facts.map(fact=>catalogKey(fact.kind,fact.name)))
-    const entries=buildCatalogEntries({facts,modules,attributeTool,packageVersions,nativeResidueProven}).filter(entry=>keys.has(catalogKey(entry.kind,entry.name))||(entry.kind==='mcp'&&facts.some(fact=>fact.kind==='tool'&&attributeTool(fact.name).server===entry.name)))
+    // One pass over the tool facts instead of (entries x tool facts) attributions.
+    const attributedServers=new Set()
+    for(const fact of facts)if(fact.kind==='tool'){const server=attributeTool(fact.name).server;if(server)attributedServers.add(server)}
+    const entries=buildCatalogEntries({facts,modules,attributeTool,packageVersions,nativeResidueProven}).filter(entry=>keys.has(catalogKey(entry.kind,entry.name))||(entry.kind==='mcp'&&attributedServers.has(entry.name)))
     const visibleNames=agent?(live?.tools||[]).map(row=>row.name):toolFacts.filter(row=>selected.some(slice=>slice.viewId===viewId&&slice.part==='tools'&&slice.facts?.includes(row))).map(row=>row.name)
     return {snapshot:current,entries,skills:entries.filter(row=>row.kind==='skill'),tools:entries.filter(row=>row.kind==='tool'),mcp:entries.filter(row=>row.kind==='mcp'),visibleNames,globalNames:selected.filter(slice=>slice.roles?.includes('host')&&slice.part==='tools').flatMap(slice=>(slice.facts||[]).map(row=>row.name)),complete:!initial&&!!viewId&&!errors.length&&selected.every(slice=>slice.complete)&&(!agent||live?.complete===true),diagnostics:errors,live:!!agent,mode:agent?'live':viewId?'preset':'error',mcpComplete:!initial&&!!viewId&&selected.filter(slice=>['sections','mcp'].includes(slice.part)).every(slice=>slice.complete)}
   }
   const catalog=Object.freeze({snapshot,subscribe,attributeTool,importObservations,reportAdapterDiagnostics,forget})
   async function dispose(){disposed=true;for(const timer of [scheduled,notification])if(timer)clearTimeout(timer);listeners.clear();if(refreshing)await refreshing;return ledger.dispose()}
-  return Object.freeze({catalog,status:()=>({...refreshTiming,hasValue:!initial,revision,elapsedMs:refreshTiming.startedAt===null?0:refreshTiming.completedAt===null?Date.now()-refreshTiming.startedAt:refreshTiming.durationMs}),declarationsChanged,refresh,invalidate(reason='tools'){changed(reason);schedule()},start:schedule,privateView:agent=>privateViews.get(agent),sessionView,recordMasks(agent,provider,names){const old=maskRecords.get(agent),next={provider,names:[...names].sort()};if(!names.length){if(maskRecords.delete(agent))changed('diagnostics')}else if(JSON.stringify(old)!==JSON.stringify(next)){maskRecords.set(agent,next);changed('diagnostics')}},readLiveView:agent=>typeof readDiscovery.readLiveView==='function'?readDiscovery.readLiveView(agent):{tools:[],complete:false,diagnostics:[diagnostic('live-tool-view-error','Root discovery does not expose a live view.')]},dispose})
+  return Object.freeze({catalog,status:()=>({...refreshTiming,hasValue:!initial,revision,elapsedMs:refreshTiming.startedAt===null?0:refreshTiming.completedAt===null?Date.now()-refreshTiming.startedAt:refreshTiming.durationMs}),declarationsChanged,refresh,invalidate(reason='tools'){changed(reason);schedule()},touch(reason='session'){changed(reason)},start:schedule,privateView:agent=>privateViews.get(agent),sessionView,recordMasks(agent,provider,names){const old=maskRecords.get(agent),next={provider,names:[...names].sort()};if(!names.length){if(maskRecords.delete(agent))changed('diagnostics')}else if(JSON.stringify(old)!==JSON.stringify(next)){maskRecords.set(agent,next);changed('diagnostics')}},readLiveView:agent=>typeof readDiscovery.readLiveView==='function'?readDiscovery.readLiveView(agent):{tools:[],complete:false,diagnostics:[diagnostic('live-tool-view-error','Root discovery does not expose a live view.')]},dispose})
 }

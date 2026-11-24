@@ -15,7 +15,10 @@ export function createNativeCatalogDiscovery(ctx,{scopeAPI,getModules=()=>[],rea
     const host=add(undefined,{viewId:'host',key:undefined,roles:['host'],service:name=>get(ctx,name)})
     try{
       try{const registry=get(ctx,'agents');if(!registry||typeof registry.list!=='function')throw new Error('Agents unavailable');agents=registry.list()}catch{authoritative=false;diagnostics.push(diagnostic('retained-composition-incomplete','Live composition enumeration is unavailable.','retained-composition'))}
-      try{const registry=get(ctx,'workspaceRegistry');if(!registry||typeof registry.list!=='function')throw new Error('Workspaces unavailable');for(const workspace of registry.list()){const cwd=normalize(workspace.path);if(cwd)projectPaths.add(cwd)}}catch{diagnostics.push(diagnostic('workspace-paths-incomplete','Registered workspace paths are unavailable.','project-skills'))}
+      // Skill scanning is scoped to workspaces actually in use: the requested project paths plus the
+      // cwds of loaded agents. Enumerating every registered workspace made the entry count (and every
+      // derived attribution) scale with projects nobody was viewing.
+      try{const registry=get(ctx,'workspaceRegistry');if(!registry||typeof registry.list!=='function')throw new Error('Workspaces unavailable');registry.list()}catch{diagnostics.push(diagnostic('workspace-paths-incomplete','Registered workspace paths are unavailable.','project-skills'))}
       for(const agent of agents){const facts=sessionHeaderFacts(agent?.session?.header);if(facts.value.cwd){const cwd=normalize(facts.value.cwd);if(cwd)projectPaths.add(cwd)}}
       if(!presets||typeof presets.acquireScope!=='function'||typeof presets.inspectCompositions!=='function'||typeof scopeAPI?.createScope!=='function'){
         authoritative=false;diagnostics.push(diagnostic('retained-composition-incomplete','Public preset/scope readers are unavailable.','retained-composition'))

@@ -13,6 +13,12 @@ export function inferenceBasis(inference,source,packageVersions={}){
 }
 export function buildCatalogEntries({observations=[],facts=[],modules=[],seenThisRun=new Set(),attributeTool,packageVersions={},nativeResidueProven=false}={}){
   const entries=new Map(),compatible=modules.filter(module=>module?.compatible!==false),managedConfiguration=new Map(facts.filter(fact=>fact.kind==='mcp'&&fact.configurationAuthority==='manager').map(fact=>[fact.name,fact.configured]))
+  // Prebuilt lookups: the per-entry loop used find() over modules and facts for every tool entry,
+  // which is quadratic once entries and facts are both large. First-in-order wins, exactly find().
+  const ownerByTool=new Map(),exclusiveByTool=new Map(),contributorByTool=new Map()
+  for(const module of compatible)for(const name of module.tools||[])if(!ownerByTool.has(name))ownerByTool.set(name,module)
+  for(const module of compatible)for(const name of module.exclusiveTools?.tools||[])if(!exclusiveByTool.has(name))exclusiveByTool.set(name,module)
+  for(const fact of facts)if(fact?.kind==='tool'&&typeof fact.name==='string'&&fact.moduleId&&!contributorByTool.has(fact.name))contributorByTool.set(fact.name,fact)
   function ensure(kind,name,description=''){
     const id=catalogKey(kind,name)
     if(!entries.has(id))entries.set(id,{kind,name,description,sources:[],sourcesTruncated:false,owner:{kind:'unknown'},ownerBasis:inferenceBasis('registration-provenance',msg('catalog.owner.no-evidence'),packageVersions),declaredBy:[],present:false,stale:false,seenThisRun:seenThisRun.has(id),firstSeenAt:null,lastSeenAt:null,...(kind==='tool'?{sessionLocal:false}:kind==='skill'?{modelInvocable:false,userInvocable:false,projectPaths:[],contexts:[],skillSources:[],skillProviders:[]}:{toolCount:0,currentToolCount:0,zeroCurrentTools:true,coldCatalog:false})})
@@ -56,8 +62,8 @@ export function buildCatalogEntries({observations=[],facts=[],modules=[],seenThi
   }
   for(const entry of [...entries.values()]){
     if(entry.kind!=='tool')continue
-    const owner=compatible.find(module=>(module.tools||[]).includes(entry.name))
-    const contributorOwner=facts.find(fact=>fact.kind==='tool'&&fact.name===entry.name&&fact.moduleId)
+    const owner=ownerByTool.get(entry.name)
+    const contributorOwner=contributorByTool.get(entry.name)
     const reserved=reservedTool(entry.name)
     const attributed=attributeTool?.(entry.name)
     if(attributed?.server)entry.mcpServer=attributed.server
@@ -66,7 +72,7 @@ export function buildCatalogEntries({observations=[],facts=[],modules=[],seenThi
     else if(contributorOwner){const module=compatible.find(row=>row.id===contributorOwner.moduleId);if(module){entry.owner={kind:'bbff',module:moduleInfo(module)};entry.ownerBasis={kind:'contract',source:msg('catalog.owner.session-contribution',{module:module.title}),module:moduleInfo(module)}}}
     else if(attributed?.server){entry.owner={kind:'mcp',server:attributed.server};entry.ownerBasis=inferenceBasis('mcp-tool-name',msg('catalog.owner.mcp-attribution',{basis:attributed.basis}),packageVersions)}
     else if(nativeResidueProven){entry.owner={kind:'dsh'};entry.ownerBasis=inferenceBasis('registration-provenance',msg('catalog.owner.registration-audit'),packageVersions)}
-    const exclusive=compatible.find(module=>module.exclusiveTools?.tools?.includes(entry.name))
+    const exclusive=exclusiveByTool.get(entry.name)
     if(exclusive)entry.exclusive={module:moduleInfo(exclusive),reason:exclusive.exclusiveTools.reason,...(exclusive.exclusiveTools.reasonLocales?{reasonLocales:exclusive.exclusiveTools.reasonLocales}:{})}
     const trait=owner?.toolTraits?.[entry.name]
     if(trait){entry.effect=trait.effect;entry.effectBasis={kind:'contract',source:msg('catalog.owner.tool-effect',{module:owner.title}),module:moduleInfo(owner)}}

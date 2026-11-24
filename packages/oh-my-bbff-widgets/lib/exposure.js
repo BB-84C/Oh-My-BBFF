@@ -124,6 +124,10 @@ export function createExposureEngine(ctx,options={}){
   for(const row of view.entries)if(!rows.has(row.kind+'\0'+row.name))rows.set(row.kind+'\0'+row.name,row)
   const visible=new Set(view.visibleNames),globalNames=new Set(view.globalNames),diagnostics=[...snapshot.diagnostics,...view.diagnostics,...snapshots.diagnostics(),...(apps.get(agent)?.diagnostics||[])]
   const tools=[],skills=[],mcp=[]
+  // Attribute each visible tool once and group by server: the MCP row loop used to re-attribute
+  // every tool for every row (rows x tools).
+  const toolsByServer=new Map()
+  for(const tool of view.tools){const server=attribute(tool.name).server;if(!server)continue;const list=toolsByServer.get(server);if(list)list.push(tool.name);else toolsByServer.set(server,[tool.name])}
   for(const row of rows.values()){
    const current=localKeys.has(row.kind+'\0'+row.name),base={name:row.name,description:row.description,owner:row.owner,ownerBasis:row.ownerBasis,present:row.present,stale:row.stale,seenThisRun:row.seenThisRun,sources:row.sources,...sourceOf(row)}
    if(row.kind==='tool'&&!row.reserved){
@@ -137,7 +141,7 @@ export function createExposureEngine(ctx,options={}){
     if(exact?.modelInvocable||disabled.skills.has(row.name)){skills.push({...base,skillSource:exact?.skillSource,skillProvider:exact?.skillProviders?.length===1?exact.skillProviders[0]:undefined,source:row.latestSource||row.sources[0]||'runtime',enabled:!!exact?.modelInvocable&&!disabled.skills.has(row.name),...(exact?{}:{available:false,reason:msg('exposure.not-in-mask-free-view')})});if(exact)cache.skills.set(row.name,{description:exact.description,source:exact.latestSource||exact.sources[0]})}
    }else if(row.kind==='mcp'){
     if(!current&&!disabled.mcp.has(row.name))continue
-    const names=view.tools.filter(tool=>attribute(tool.name).server===row.name).map(tool=>tool.name).sort(),entry={...base,server:row.name,connected:names.length>0,connectionState:'unverified',connectionBasis:'Current tool schemas are observed; transport connection state is not independently verified.',toolCount:names.length,currentToolCount:names.length,tools:names,enabled:current&&row.present!==false&&!disabled.mcp.has(row.name),configured:row.configured,configuredEnabled:row.configuredEnabled}
+    const names=(toolsByServer.get(row.name)||[]).slice().sort(),entry={...base,server:row.name,connected:names.length>0,connectionState:'unverified',connectionBasis:'Current tool schemas are observed; transport connection state is not independently verified.',toolCount:names.length,currentToolCount:names.length,tools:names,enabled:current&&row.present!==false&&!disabled.mcp.has(row.name),configured:row.configured,configuredEnabled:row.configuredEnabled}
     if(!current||row.present===false){entry.available=false;entry.reason=msg('exposure.not-present')}
     mcp.push(entry)
    }

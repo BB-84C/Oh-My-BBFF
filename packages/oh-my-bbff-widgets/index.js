@@ -76,9 +76,13 @@ export function apply(ctx) {
 
   const locales = createLocaleSource({ home, getModules: () => family?.list() || [], logger: ctx.logger })
   const humanPath = join(dataDir, 'human-todos.json')
-  for(const [event,reason] of [['tools/change','tools'],['mcp-manager/status','mcp'],['loader/volatile-update','mcp'],['agent/created','agents'],['agent/disposed','agents'],['agent-preset/selected','presets'],['app-boot/config-reload','presets'],['plugin-manager/changed','presets'],['hmr/reload','presets'],['skills/change','skills'],['system-prompt/change','presets'],['loader/config-update','presets'],['loader/entry-init','presets'],['loader/partial-dispose','presets'],['domain/changed','projects']]){
+  for(const [event,reason] of [['tools/change','tools'],['mcp-manager/status','mcp'],['loader/volatile-update','mcp'],['agent-preset/selected','presets'],['app-boot/config-reload','presets'],['plugin-manager/changed','presets'],['hmr/reload','presets'],['skills/change','skills'],['system-prompt/change','presets'],['loader/config-update','presets'],['loader/entry-init','presets'],['loader/partial-dispose','presets'],['domain/changed','projects']]){
     ctx.on?.(event,()=>{catalogProvider.invalidate(reason)})
   }
+  // Agent lifecycle cannot change tools, presets or workspace skills: the live view is read per
+  // session on demand, so notify listeners without scheduling a full discovery rescan. DSH loads
+  // and unloads an agent about once per turn, which made a rescan here continuous.
+  for(const event of ['agent/created','agent/disposed'])ctx.on?.(event,()=>{catalogProvider.touch('agents')})
   ctx.effect?.(()=>()=>catalogProvider.dispose())
   catalogProvider.start()
 

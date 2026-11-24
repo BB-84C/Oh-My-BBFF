@@ -68,7 +68,7 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
   dir=path.resolve(dir)
   if(dir===path.parse(dir).root||path.dirname(dir)===path.parse(dir).root)throw new Error('Refusing shallow/drive-root ledger directory')
   const file=path.join(dir,'catalog.json'),lock=file+'.lock',limits={maxRows,maxBytes,maxSources,maxPaths}
-  let document=empty(),snapshotCache,initialized=false,initializing,disposed=false,closing=false,debounce,retry,reconcileTimer,flushing,queue=Promise.resolve(),signature=null,pendingSince=null,retryDelay=25,revision=0
+  let document=empty(),snapshotCache,viewCache,initialized=false,initializing,disposed=false,closing=false,debounce,retry,reconcileTimer,flushing,queue=Promise.resolve(),signature=null,pendingSince=null,retryDelay=25,revision=0
   const pending=new Map(),diagnostics=new Map(),fingerprints=new Map()
   const counts={observations:0,unchanged:0,accepted:0,writes:0}
   const fingerprint=row=>JSON.stringify([row.kind,row.name,row.description,row.sources,row.latestSource||'',row.sessionLocal===true,row.projectPaths||[],row.sourcesTruncated===true])
@@ -136,8 +136,11 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
     for(const [id,row]of pending){const part=pendingContribution(id,row);contributions.set(id,part);addContribution(pendingView,id,part)}
   }
   syncDocument()
-  function signal(){snapshotCache=null;revision++;try{onChange()}catch{}}
-  function report(code,reason,extra){diagnostics.set(code,diagnostic(code,reason,extra));signal()}
+  // viewChanged=false for diagnostics-only updates: the merged entries/tombstones did not move,
+  // so the next snapshot reuses that view (its rows are already frozen) instead of re-merging the
+  // whole document and deep-freezing every row again.
+  function signal(viewChanged=true){snapshotCache=null;if(viewChanged)viewCache=null;revision++;try{onChange()}catch{}}
+  function report(code,reason,extra){diagnostics.set(code,diagnostic(code,reason,extra));signal(false)}
   function pendingDiagnostic(){
     const before=diagnostics.has('pending-durability')
     if(!pending.size){pendingSince=null;diagnostics.delete('pending-durability');return before!==diagnostics.has('pending-durability')}
@@ -145,9 +148,14 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
     diagnostics.set('pending-durability',diagnostic('pending-durability','Catalog rows are pending durability; the normal one-second loss bound does not apply.',{pendingRows:pending.size,pendingSince,transient:true}))
     return !before
   }
+  function currentView(){
+    if(viewCache)return viewCache
+    viewCache=pending.size?merge(document,[...pending.values()],[],limits,{live:true}).document:document
+    return viewCache
+  }
   function snapshot(){
     if(snapshotCache)return snapshotCache
-    const view=merge(document,[...pending.values()],[],limits,{live:true}).document
+    const view=currentView()
     const rows=[...document.persistentDiagnostics,...diagnostics.values()]
     if(view.entries.some(row=>row.sourcesTruncated))rows.push(diagnostic('sources-truncated','Some catalog source or project-path metadata exceeds the64-item cap.'))
     snapshotCache=freeze({entries:view.entries,tombstones:view.tombstones,diagnostics:rows,initialized,revision})
@@ -225,7 +233,7 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
   async function release(token){
     try{const owner=JSON.parse(await fs.readFile(lock,'utf8'));if(owner.token===token&&owner.pid===process.pid)await fs.unlink(lock)}catch{}
   }
-  async function locked(operation){const token=await acquire();if(!token){pendingDiagnostic();signal();return {ok:false,code:'busy'}}try{return await operation()}finally{await release(token)}}
+  async function locked(operation){const token=await acquire();if(!token){pendingDiagnostic();signal(false);return {ok:false,code:'busy'}}try{return await operation()}finally{await release(token)}}
   const exclusive=operation=>{const value=queue.then(operation);queue=value.catch(()=>{});return value}
   async function initialize(){
     if(disposed)return snapshot()
@@ -274,7 +282,7 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
     if(debounce){clearTimeout(debounce);debounce=null}
     flushing=exclusive(async()=>{
       await initialize()
-      if(!pending.size){if(pendingDiagnostic())signal();return {ok:true,changed:false}}
+      if(!pending.size){if(pendingDiagnostic())signal(false);return {ok:true,changed:false}}
       const batch=new Map(pending)
       try{
         const response=await locked(async()=>{
@@ -287,7 +295,7 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
           for(const [id,row]of batch)if(pending.get(id)===row)pending.delete(id)
           return {ok:true,changed:merged.changed>0}
         })
-        if(!response.ok){pendingDiagnostic();scheduleRetry();signal()}else{retryDelay=25;if(retry){clearTimeout(retry);retry=null}diagnostics.delete('ledger-storage-error');const diagChanged=pendingDiagnostic();if(response.changed||diagChanged)signal()}
+        if(!response.ok){pendingDiagnostic();scheduleRetry();signal()}else{retryDelay=25;if(retry){clearTimeout(retry);retry=null}diagnostics.delete('ledger-storage-error');const diagChanged=pendingDiagnostic();if(response.changed)signal();else if(diagChanged)signal(false)}
         return response
       }catch{pendingDiagnostic();report('ledger-storage-error','Catalog write failed; rows remain pending durability.');scheduleRetry();return {ok:false,code:'storage-error'}}
     }).finally(()=>{flushing=null})
@@ -346,5 +354,8 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
     await queue.catch(()=>{})
     disposed=true
   }
-  return Object.freeze({file,initialize,snapshot,observe,flush,importObservations,forget,reconcile,dispose,counts})
+  // Cheap change token for derived caches: bumped by every signal() (pending or committed
+  // change), so a caller can key a derived view without running snapshot()'s merge.
+  const revisionOf=()=>revision
+  return Object.freeze({file,initialize,snapshot,observe,flush,importObservations,forget,reconcile,dispose,counts,revision:revisionOf})
 }

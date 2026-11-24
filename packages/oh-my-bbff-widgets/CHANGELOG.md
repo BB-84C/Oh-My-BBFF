@@ -1,5 +1,19 @@
 # Changelog — Oh-My-BBFF Widgets
 
+## 1.0.4 — hinted attribution and snapshot reuse
+
+- The attribution cache now covers caller-provided server hints instead of bypassing it. Keyed on the tool name plus the sorted hint set inside the same revision-keyed table, so a consumer that passes its disabled-server set on every row (the Scope panel does this for every catalog row) reuses one attribution per distinct pair instead of decoding per call. Hint order cannot change the result, so sorting the key is safe.
+- A diagnostics-only ledger change no longer discards the merged catalog view: the next snapshot reuses the merged entries and tombstones (already frozen) instead of re-merging the whole document and deep-freezing every row. A real row change still rebuilds it.
+- Same Scope collect on the measurement machine: 964 attributed calls went from 964 server-list rebuilds and 964 decodes (22.2 ms collect) to 0 rebuilds and 0 decodes on a warm pass (3.6 ms collect, 0.66 ms delegated). Provider materialization of a 2000-tool, 20-server catalog is 13 ms versus 264 ms before.
+
+## 1.0.3 — catalog attribution cost
+
+- The catalog build stopped recomputing the server list for every tool attribution. `knownServers()` ran a full ledger snapshot merge plus a flatten of every fact on each call, and the entry builder called it once per tool entry (and, in the session view, once per entry per tool fact), so the build was effectively cubic. The server list and a tool to server map are now computed once per catalog revision, the ledger exposes a cheap change token that keys it, and every attribution is a table lookup.
+- The per-entry owner, contributor and exclusive-tool lookups are prebuilt maps instead of linear scans, the session view computes the MCP server set in one pass over the tool facts, and the exposure view groups tools by server once instead of re-attributing every tool for every server row.
+- An agent load or unload no longer triggers a full discovery rescan. DSH loads and unloads an agent about once per turn, so those events now only notify listeners while tool, preset, plugin, skill and project changes still rescan.
+- Skill discovery is scoped to the workspaces actually in use (requested project paths plus loaded agent working directories) instead of enumerating every registered workspace, which multiplied the entry count for projects nobody was viewing.
+- Same synthetic catalog on the measurement machine: 500/1000/2000 tools took 34/112/400 ms before and 2000 tools take 27 ms now (about 15x at 2000), with a flat per-entry cost instead of quadratic growth. Entries, owners, attribution bases and exclusive flags are byte-identical to the previous implementation, pinned by an equivalence test that keeps the old builder as a reference oracle.
+
 ## 1.0.2 — packaging fix (1.0.1 could not be imported)
 
 - The 1.0.1 tarball shipped four modules as tar **hardlink** entries (the source tree carried hardlinks into a cleanroom install), and installers that do not resolve tar links materialized them as 0-byte files. The import then failed with `does not provide an export named ...`. Every shipped file was materialized as an independent inode before packing and the archive now contains no link entries of any kind.
