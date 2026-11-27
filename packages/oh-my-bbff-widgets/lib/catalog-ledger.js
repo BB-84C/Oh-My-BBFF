@@ -72,7 +72,12 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
   const pending=new Map(),diagnostics=new Map(),fingerprints=new Map()
   const counts={observations:0,unchanged:0,accepted:0,writes:0}
   const fingerprint=row=>JSON.stringify([row.kind,row.name,row.description,row.sources,row.latestSource||'',row.sessionLocal===true,row.projectPaths||[],row.sourcesTruncated===true])
-  const index=doc=>{fingerprints.clear();for(const row of doc.entries)fingerprints.set(key(row),fingerprint(row))}
+  const storedRows=new Map()
+  const index=doc=>{fingerprints.clear();storedRows.clear();for(const row of doc.entries){fingerprints.set(key(row),fingerprint(row));storedRows.set(key(row),row)}}
+  // An observation whose content the base row already covers is a no-op. Discovery observes every fact once per source slice with a one-source list,
+  // so the fingerprint test alone never matches a row that has several sources. The base is the pending row when there is one (a stored row can no longer
+  // tell what the next write will contain), else the stored row.
+  const covered=(base,row)=>!!base&&base.kind===row.kind&&(!row.description||row.description===base.description)&&(row.sessionLocal===undefined||row.sessionLocal===base.sessionLocal)&&(!row.sourcesTruncated||base.sourcesTruncated===true)&&row.sources.every(item=>base.sources.includes(item))&&(!row.latestSource||base.sources.includes(row.latestSource))&&(row.projectPaths||[]).every(item=>(base.projectPaths||[]).includes(item))
   const serialize=doc=>JSON.stringify(doc,null,2)+'\n'
   const full=doc=>doc.entries.length+doc.tombstones.length>maxRows||Buffer.byteLength(serialize(doc),'utf8')>maxBytes
   // ---------------------------------------------------------------------------
@@ -262,7 +267,7 @@ export function createCatalogLedger({dir,now=()=>new Date().toISOString(),onChan
       const id=key(row),nextFingerprint=fingerprint(row),prior=pending.get(id)
       // Cheap no-op: an identical observation (same content fields) neither clones
       // nor schedules a write; timestamps alone do not force durability work.
-      if(prior?fingerprint(prior)===nextFingerprint:fingerprints.get(id)===nextFingerprint){unchanged++;continue}
+      if((prior?fingerprint(prior)===nextFingerprint:fingerprints.get(id)===nextFingerprint)||covered(prior||storedRows.get(id),row)){unchanged++;continue}
       if(prior)row=merge(empty(),[prior,row],[],limits,{live:true}).document.entries[0]
       // Admission is the exact `full()` verdict for `document` unioned with the whole
       // pending set, computed from that set's byte deltas (see pendingView above).
