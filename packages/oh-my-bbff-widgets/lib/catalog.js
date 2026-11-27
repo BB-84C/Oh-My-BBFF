@@ -16,6 +16,16 @@ const normalizeCwd=cwd=>{
 }
 export function createCatalogProvider({dir,getModules=()=>[],readDiscovery,now=()=>new Date().toISOString(),notifyMs=25,ledgerOptions={}}={}){
   const identity=randomUUID(),listeners=new Set(),requested=new Set(),scannedProjects=new Set(),seenThisRun=new Set(),slices=new Map(),moduleReports=new Map(),maskRecords=new Map(),cache=new Map(),reasons=new Set(),changedProjects=new Set()
+  // `requested` used to only grow (nothing ever removed a cwd) and every refresh handed all of it to discovery, so a rescan got bigger the longer the process ran.
+  // Every transient request (the HTTP `catalog` action, a session view) keeps the time of its last request; a refresh submits only the cwds requested within REQUEST_TTL_MS, most recent first, at most REQUEST_MAX.
+  // A cwd that dropped out is added again (and a refresh is scheduled) the next time it is requested. Registered workspaces and loaded agents' cwds are not affected: discovery adds them itself.
+  // Requests that are not transient (Scope registers the workspaces of its rules once per provider, as lifetime contexts) are pinned and never dropped.
+  // REQUEST_MAX bounds the size of one rescan; REQUEST_TTL_MS lets projects that are no longer used leave on their own.
+  const REQUEST_TTL_MS=240*60*1000,REQUEST_MAX=64,requestedAt=new Map(),pinned=new Set()
+  function pruneRequested(){
+    const now=Date.now(),keep=new Set([...requestedAt].filter(([,at])=>now-at<=REQUEST_TTL_MS).sort((a,b)=>b[1]-a[1]).slice(0,REQUEST_MAX).map(([cwd])=>cwd))
+    for(const cwd of [...requestedAt.keys()])if(!keep.has(cwd)){requestedAt.delete(cwd);requested.delete(cwd);scannedProjects.delete(cwd)}
+  }
   let modules=getModules(),sequence=0,revision=identity+':0',generatedAt=now(),initial=true,maskCoverageComplete=false,disposed=false,notification,scheduled,refreshing,rerun=false,discoveryDiagnostics=[],defaultViewId,packageVersions={},nativeResidueProven=false,privateViews=new Map()
   let refreshTiming={state:'pending',reason:msg('diag.catalog-pending'),startedAt:null,completedAt:null,durationMs:null,ledgerMs:null,discoveryMs:null}
   const ledger=createCatalogLedger({...ledgerOptions,dir,now,onChange:()=>changed('ledger')})
@@ -79,7 +89,7 @@ export function createCatalogProvider({dir,getModules=()=>[],readDiscovery,now=(
   }
   function snapshot(options={}){
     const cwd=options?.cwd===undefined?undefined:normalizeCwd(options.cwd)
-    if(cwd&&!requested.has(cwd)){requested.add(cwd);changedProjects.add(cwd);changed('projects');schedule()}
+    if(cwd){if(options?.transient){if(!pinned.has(cwd))requestedAt.set(cwd,Date.now())}else{pinned.add(cwd);requestedAt.delete(cwd)}if(!requested.has(cwd)){requested.add(cwd);changedProjects.add(cwd);changed('projects');schedule()}}
     const key=cwd||''
     if(cache.has(key))return cache.get(key)
     const rows=diagnostics(),newRoot=cwd?projection(cwd):undefined
@@ -115,7 +125,7 @@ export function createCatalogProvider({dir,getModules=()=>[],readDiscovery,now=(
       const started=performance.now();refreshTiming={state:'running',reason:msg('diag.catalog-running'),startedAt:Date.now(),completedAt:null,durationMs:null,ledgerMs:null,discoveryMs:null}
       await ledger.initialize();refreshTiming.ledgerMs=performance.now()-started
       try{
-        const submittedPaths=[...requested]
+        pruneRequested();const submittedPaths=[...requested]
         const discoveryStarted=performance.now(),result=await readDiscovery({projectPaths:submittedPaths});refreshTiming.discoveryMs=performance.now()-discoveryStarted
         if(disposed)return snapshot()
         const active=new Set()
@@ -179,7 +189,7 @@ export function createCatalogProvider({dir,getModules=()=>[],readDiscovery,now=(
     changed('forget');return freeze({...response,revision})
   }
   function sessionView({agent,presetId,cwd}={}){
-    const current=snapshot(cwd?{cwd}:{}),errors=[]
+    const current=snapshot(cwd?{cwd,transient:true}:{}),errors=[]
     let live=agent?(readDiscovery.readLiveView?.(agent)||privateViews.get(agent)):undefined
     if(agent&&live?.complete===false&&!live.tools?.length&&privateViews.has(agent))live={...privateViews.get(agent),...live,tools:privateViews.get(agent).tools,stale:true}
     if(live?.tools?.length)privateViews.set(agent,{...live})

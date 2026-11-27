@@ -356,7 +356,7 @@ export function apply(ctx) {
               return
             }
             if (action === 'catalog') {
-              sendJson(res,{ok:true,catalog:catalogProvider.catalog.snapshot(body.cwd?{cwd:body.cwd}:{})})
+              sendJson(res,{ok:true,catalog:catalogProvider.catalog.snapshot(body.cwd?{cwd:body.cwd,transient:true}:{})})
               return
             }
             if (action === 'catalog-forget') {
