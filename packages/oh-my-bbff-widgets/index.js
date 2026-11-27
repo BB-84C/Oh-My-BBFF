@@ -77,7 +77,12 @@ export function apply(ctx) {
   const locales = createLocaleSource({ home, getModules: () => family?.list() || [], logger: ctx.logger })
   const humanPath = join(dataDir, 'human-todos.json')
   for(const [event,reason] of [['tools/change','tools'],['mcp-manager/status','mcp'],['loader/volatile-update','mcp'],['agent-preset/selected','presets'],['app-boot/config-reload','presets'],['plugin-manager/changed','presets'],['hmr/reload','presets'],['skills/change','skills'],['system-prompt/change','presets'],['loader/config-update','presets'],['loader/entry-init','presets'],['loader/partial-dispose','presets'],['domain/changed','projects']]){
-    ctx.on?.(event,()=>{catalogProvider.invalidate(reason)})
+    ctx.on?.(event,(change)=>{
+      // A storage-domain write changes what discover() reads only when it changes the workspace registry (domain 'workspace').
+      // Projection-cache checkpoints (domain 'session_projcache', one per running session every few seconds) and schedule writes do not.
+      if(event==='domain/changed'&&!(change&&change.domain==='workspace'))return
+      catalogProvider.invalidate(reason)
+    })
   }
   // Agent lifecycle cannot change tools, presets or workspace skills: the live view is read per
   // session on demand, so notify listeners without scheduling a full discovery rescan. DSH loads
