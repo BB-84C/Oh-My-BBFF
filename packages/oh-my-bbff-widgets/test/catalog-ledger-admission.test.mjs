@@ -6,7 +6,8 @@
 // to the previous algorithm: the OLD implementation is replayed verbatim as a
 // reference, every batch is compared in lockstep (admission counts, merged view,
 // tombstone fencing, first/last seen, source/path union), and the persisted document
-// must be byte-identical to what the old algorithm would have written.
+// must be byte-identical to what the old algorithm would have written. The one intended
+// difference, an observation that the row already covers, is described at `assertSame`.
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -131,16 +132,35 @@ async function openLedger(options = {}) {
   }
 }
 
+// One difference from the old algorithm is intended: an observation that the row it would be merged into already
+// covers (same kind, description and flags; every source, latest source and project path already present) is a
+// no-op. The ledger counts it as `unchanged` where the old algorithm counted it as accepted, and it does not refresh
+// the row's timestamps or latest source. A session with `coveredIsNoop` set compares accepted + unchanged and leaves
+// `firstSeenAt`, `lastSeenAt` and `latestSource` out of the comparison; everything else must still match exactly.
+// The sessions that never see a covered observation (the byte-cap and row-cap sweeps) keep the strict comparison.
+const withoutSeen = ({ firstSeenAt, lastSeenAt, latestSource, ...content }) => content
+
 /** Compare one observe() batch: admission counts, effective view and counters must match. */
 function assertSame(stage, session, records) {
   const actual = session.ledger.observe(records)
   const expected = session.reference.observe(records)
-  assert.deepEqual(actual, expected, stage + ': admission counts')
+  if (session.coveredIsNoop) {
+    assert.equal(actual.accepted + actual.unchanged, expected.accepted + expected.unchanged, stage + ': admission counts (accepted + unchanged)')
+    assert.equal(actual.rejected, expected.rejected, stage + ': rejected')
+  } else assert.deepEqual(actual, expected, stage + ': admission counts')
   const view = session.ledger.snapshot()
   const reference = session.reference.view()
-  assert.deepEqual(view.entries, reference.entries, stage + ': merged entries')
+  const entries = session.coveredIsNoop ? (rows) => rows.map(withoutSeen) : (rows) => rows
+  assert.deepEqual(entries(view.entries), entries(reference.entries), stage + ': merged entries')
   assert.deepEqual(view.tombstones, reference.tombstones, stage + ': merged tombstones')
   return actual
+}
+
+/** The persisted document against the old algorithm's: byte for byte, or without the fields above for `coveredIsNoop`. */
+function assertSameDocument(session, persisted, message) {
+  if (!session.coveredIsNoop) return assert.equal(persisted, serialize(session.reference.view()), message)
+  const content = (document) => ({ ...document, entries: document.entries.map(withoutSeen) })
+  assert.deepEqual(content(JSON.parse(persisted)), content(session.reference.view()), message)
 }
 
 const observed = { observations: 0, accepted: 0, unchanged: 0 }
@@ -151,6 +171,7 @@ const row = (session, name, extra = {}) => {
 
 test('incremental admission matches the old algorithm: union, Unicode, repeats, fencing', async () => {
   const session = await openLedger()
+  session.coveredIsNoop = true
   try {
     const at0 = session.advance(60_000)
     // Growing sources per name, multi-byte descriptions, repeated records.
@@ -174,9 +195,9 @@ test('incremental admission matches the old algorithm: union, Unicode, repeats, 
     assertSame('equal timestamp cannot resurrect', session, [{ kind: 'tool', name: 'alpha', description: 'α — 一', sources: ['host'], firstSeenAt: at0, lastSeenAt: atForgotten }])
     assertSame('newer clears tombstone', session, [{ kind: 'tool', name: 'alpha', description: 'α — 一', sources: ['host', 'preset:three'], firstSeenAt: at0, lastSeenAt: session.advance(60_000) }])
     await session.flush()
-    // Byte identity with the old algorithm's document.
+    // The old algorithm's document, byte for byte except for what a covered observation leaves alone (see assertSame).
     const persisted = await fs.readFile(session.ledger.file, 'utf8')
-    assert.equal(persisted, serialize(session.reference.view()), 'the persisted document is byte-identical to the old algorithm')
+    assertSameDocument(session, persisted, 'the persisted document matches the old algorithm')
   } finally { await session.close() }
 })
 
@@ -228,6 +249,7 @@ test('randomized differential: incremental admission matches the old algorithm b
   const sources = ['host', 'session-local', 'configured', 'preset:a', 'preset:b', 'mcp:x', 'project:y', 'bbff:z']
   const suffixes = ['', ' — 说明', ' ünïcode', ' — 二']
   const session = await openLedger({ maxRows: 20, maxBytes: 24_000 })
+  session.coveredIsNoop = true
   try {
     for (let step = 0; step < 60; step += 1) {
       const roll = random()
@@ -243,6 +265,6 @@ test('randomized differential: incremental admission matches the old algorithm b
       assertSame('random step ' + step, session, batch)
     }
     await session.flush()
-    assert.equal(await fs.readFile(session.ledger.file, 'utf8'), serialize(session.reference.view()), 'randomized: document matches')
+    assertSameDocument(session, await fs.readFile(session.ledger.file, 'utf8'), 'randomized: document matches')
   } finally { await session.close() }
 })
