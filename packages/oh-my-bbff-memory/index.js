@@ -64,7 +64,7 @@ export function apply(ctx, config = {}) {
   const tokenCounter = createTokenCounter(), measureReviewFile = createInstructionDisplayReader(tokenCounter)
   const injection = createMemoryInjection({ ctx, home, globalDir: paths.memoryRoot, getSettings: settings, resolveRoot, getToggles: toggles, readCache: sessionReads, resolveBudget: budget.resolve, tokenCounter, logger: ctx.logger })
   const source = createSessionSource({ getPersistence: () => get('sessionPersistence'), getQuery: () => get('sessionQuery'), getAgents: () => get('agents'), getRoot: id => resolveRoot(id), getSettings: settings, readCache: sessionReads, sessionBudget, logger: ctx.logger })
-  const kernel = createDreamingKernel({ paths, getSettings: settings, source, logger: ctx.logger }), resident = createDreamingResident({ ctx, kernel, getSettings: settings, logger: ctx.logger }), native = createNativeInstructionReader(ctx, { tokenCounter }), skill = createManagedSkill({ home, paths, getSettings: settings })
+  const kernel = createDreamingKernel({ paths, getSettings: settings, source, logger: ctx.logger, getArchivedSessionIds: () => get('workspaceRegistry')?.archivedSessionIds }), resident = createDreamingResident({ ctx, kernel, getSettings: settings, logger: ctx.logger }), native = createNativeInstructionReader(ctx, { tokenCounter }), skill = createManagedSkill({ home, paths, getSettings: settings })
   const presetBudget = createPresetBudgetManager({ getProfile: () => get('profileContext') })
   const startupBudget = presetBudget.status();if (startupBudget.drift === true) warn(logText(startupBudget.reason))
   skill.ensure()
