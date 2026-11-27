@@ -12,6 +12,7 @@ export function inferenceBasis(inference,source,packageVersions={}){
   return {kind:'adapter',source,inference,packageName:convention?.ownerPackage||'',...(packageVersions[convention?.ownerPackage]?{packageVersion:packageVersions[convention.ownerPackage]}:{})}
 }
 export function buildCatalogEntries({observations=[],facts=[],modules=[],seenThisRun=new Set(),attributeTool,packageVersions={},nativeResidueProven=false}={}){
+  const contextKeys=new WeakMap()   // per entry: the JSON of the contexts already pushed (a Set lookup instead of comparing against every earlier context)
   const entries=new Map(),compatible=modules.filter(module=>module?.compatible!==false),managedConfiguration=new Map(facts.filter(fact=>fact.kind==='mcp'&&fact.configurationAuthority==='manager').map(fact=>[fact.name,fact.configured]))
   // Prebuilt lookups: the per-entry loop used find() over modules and facts for every tool entry,
   // which is quadratic once entries and facts are both large. First-in-order wins, exactly find().
@@ -52,7 +53,8 @@ export function buildCatalogEntries({observations=[],facts=[],modules=[],seenThi
        if(typeof fact.skillProvider==='string')entry.skillProviders.push(fact.skillProvider)
       if(fact.projectPath)entry.projectPaths.push(fact.projectPath)
       const sources=(fact.sources||[]).slice(),context={...(fact.projectPath?{projectPath:fact.projectPath}:{}),sources,modelInvocable,userInvocable}
-      if(!entry.contexts.some(item=>JSON.stringify(item)===JSON.stringify(context)))entry.contexts.push(context)
+      const contextKey=JSON.stringify(context),seenContexts=contextKeys.get(entry)||contextKeys.set(entry,new Set()).get(entry)
+      if(!seenContexts.has(contextKey)){seenContexts.add(contextKey);entry.contexts.push(context)}
     }
   }
   for(const module of compatible)for(const name of module.tools||[]){
