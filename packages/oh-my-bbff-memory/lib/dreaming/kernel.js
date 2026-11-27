@@ -28,10 +28,16 @@ function mergeRanges(ranges) {
 }
 function coverageKey(sessionId, message) { return JSON.stringify([sessionId, message.index]) }
 
-export function createDreamingKernel({ paths, config = {}, getSettings, now = () => Date.now(), logger, source }) {
+export function createDreamingKernel({ paths, config = {}, getSettings, now = () => Date.now(), logger, source, getArchivedSessionIds }) {
   const settings = () => normalizeSettings({ ...legacySettings({ dream: config }), ...legacySettings(config), ...(getSettings?.() || {}) })
   const intervalMs = () => Math.round(settings().wakeIntervalHours * 3600000)
   const limits = () => { const value = settings();return { maxSessions: value.deltaMaxSessions, maxMessagesPerSession: value.deltaMaxMessagesPerSession, maxBytesPerSession: value.deltaMaxBytesPerSession, maxBytesTotal: value.deltaMaxBytesTotal } }
+  // Sessions the user archived are hidden from the host's session groupings and are not reviewed. The workspace registry owns
+  // that set; a registry that is missing, not started yet or failing excludes nothing extra, as before.
+  const archivedSessionIds = () => {
+    try { const ids = getArchivedSessionIds?.();return Array.isArray(ids) ? ids.filter(id => typeof id === 'string') : [] }
+    catch { return [] }
+  }
   const readState = () => loadState({ statePath: paths.statePath, now: now(), errorHistoryLimit: settings().errorHistoryLimit })
   const write = state => { if (state.stateUnavailable) throw new Error('Unverified dreaming state cannot overwrite preserved recovery evidence.');saveState({ statePath: paths.statePath, state });return state }
   function ensureInitialised() { const loaded = readState();if (!loaded.exists) write(loaded.state);return loaded }
@@ -62,7 +68,7 @@ export function createDreamingKernel({ paths, config = {}, getSettings, now = ()
     if (!force && existing?.checkpointIdentity === key && existing?.inputIdentity === inputKey) return existing
     let delta
     if (!source?.available?.()) delta = { version: 2, deltaId: 'delta-' + randomUUID(), createdAt: now(), checkpointAt: state.checkpoint.at, checkpointBefore: state.checkpoint, entries: [], nextCheckpoint: state.checkpoint, stats: { sessionsListed: 0, sessionsRead: 0, messages: 0, bytes: 0, truncated: false, unavailable: true } }
-    else delta = await computeDelta({ source, checkpoint: state.checkpoint, now: now(), limits: limits(), includeSubagents: value.includeSubagentSessions, exclude: { sessionIds: [...(state.residentSessionId ? [state.residentSessionId] : []), ...(state.previousResidentSessionIds || [])], cwdPrefixes: [paths.residentWorkspace] }, logger })
+    else delta = await computeDelta({ source, checkpoint: state.checkpoint, now: now(), limits: limits(), includeSubagents: value.includeSubagentSessions, exclude: { sessionIds: [...(state.residentSessionId ? [state.residentSessionId] : []), ...(state.previousResidentSessionIds || []), ...archivedSessionIds()], cwdPrefixes: [paths.residentWorkspace] }, logger })
     Object.assign(delta, { checkpointIdentity: key, inputIdentity: inputKey, readCoverage: {} })
     writeJsonAtomic(paths.deltaPath, delta);return delta
   }
